@@ -2,6 +2,11 @@
 
 import { useState, useEffect } from 'react';
 
+// Add custom button styles
+const buttonBaseStyles = "relative inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 ease-in-out transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:ring-offset-2 focus:ring-offset-zinc-900";
+const primaryButtonStyles = `${buttonBaseStyles} bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-md hover:shadow-lg hover:shadow-purple-500/20`;
+const outlineButtonStyles = `${buttonBaseStyles} bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-600 text-white`;
+
 interface InvoiceFormProps {
   organizationId: string;
   invoiceId?: string | null;
@@ -169,17 +174,17 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
   return (
     <form onSubmit={handleSubmit} className="text-white">
       {error && (
-        <div className="bg-gray-800 border border-red-500 text-red-300 px-4 py-3 rounded mb-4">
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6">
           {error}
         </div>
       )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div>
-          <h3 className="text-lg font-medium mb-4">Client Information</h3>
+        <div className="bg-zinc-900/50 border border-zinc-800 backdrop-blur-sm rounded-lg p-5">
+          <h3 className="text-lg font-medium mb-4 text-white">Client Information</h3>
           <div className="space-y-4">
             <div>
-              <label htmlFor="client_name" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="client_name" className="block text-sm font-medium text-zinc-400 mb-1">
                 Client Name *
               </label>
               <input
@@ -188,13 +193,13 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
                 name="client_name"
                 value={formData.client_name}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
                 required
               />
             </div>
             
             <div>
-              <label htmlFor="client_email" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="client_email" className="block text-sm font-medium text-zinc-400 mb-1">
                 Client Email *
               </label>
               <input
@@ -203,23 +208,23 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
                 name="client_email"
                 value={formData.client_email}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
                 required
               />
             </div>
           </div>
         </div>
         
-        <div>
-          <h3 className="text-lg font-medium mb-4">Invoice Details</h3>
+        <div className="bg-zinc-900/50 border border-zinc-800 backdrop-blur-sm rounded-lg p-5">
+          <h3 className="text-lg font-medium mb-4 text-white">Invoice Details</h3>
           <div className="space-y-4">
             <div>
-              <label htmlFor="amount_total" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="amount_total" className="block text-sm font-medium text-zinc-400 mb-1">
                 Amount *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-400">
+                  <span className="text-zinc-400">
                     {formData.currency === 'USD' ? '$' : 
                      formData.currency === 'EUR' ? '€' : 
                      formData.currency === 'GBP' ? '£' : 
@@ -234,7 +239,7 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
                   step="0.01"
                   value={formData.amount_total}
                   onChange={handleInputChange}
-                  className="w-full pl-8 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                  className="w-full pl-8 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
                   required
                   placeholder="0.00"
                 />
@@ -242,7 +247,7 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
             </div>
             
             <div>
-              <label htmlFor="due_date" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="due_date" className="block text-sm font-medium text-zinc-400 mb-1">
                 Due Date *
               </label>
               <input
@@ -251,13 +256,13 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
                 name="due_date"
                 value={formData.due_date}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
                 required
               />
             </div>
             
             <div>
-              <label htmlFor="currency" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="currency" className="block text-sm font-medium text-zinc-400 mb-1">
                 Currency
               </label>
               <select
@@ -265,7 +270,7 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
                 name="currency"
                 value={formData.currency}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
               >
                 <option value="USD">USD - US Dollar</option>
                 <option value="EUR">EUR - Euro</option>
@@ -278,7 +283,7 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
             </div>
             
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="status" className="block text-sm font-medium text-zinc-400 mb-1">
                 Status
               </label>
               <select
@@ -286,21 +291,23 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
                 name="status"
                 value={formData.status}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
               >
                 <option value="Draft">Draft</option>
                 <option value="Sent">Sent</option>
+                <option value="Pending">Pending</option>
                 <option value="Paid">Paid</option>
+                <option value="Overdue">Overdue</option>
               </select>
             </div>
           </div>
         </div>
       </div>
       
-      <div className="mb-6">
-        <h3 className="text-lg font-medium mb-4">Additional Details</h3>
+      <div className="bg-zinc-900/50 border border-zinc-800 backdrop-blur-sm rounded-lg p-5 mb-6">
+        <h3 className="text-lg font-medium mb-4 text-white">Additional Details</h3>
         <div>
-          <label htmlFor="notes" className="block text-sm font-medium text-gray-300 mb-1">
+          <label htmlFor="notes" className="block text-sm font-medium text-zinc-400 mb-1">
             Notes
           </label>
           <textarea
@@ -309,21 +316,21 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
             value={formData.notes}
             onChange={handleInputChange}
             rows={3}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white resize-none"
+            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white resize-none"
           ></textarea>
         </div>
       </div>
       
-      <div className="bg-gray-800 p-4 rounded-lg mb-6">
-        <h3 className="font-medium mb-2">Invoice Summary</h3>
+      <div className="bg-zinc-900/50 border border-zinc-800 backdrop-blur-sm rounded-lg p-5 mb-6">
+        <h3 className="font-medium mb-2 text-white">Invoice Summary</h3>
         <div className="flex justify-between items-center">
           <div>
-            <div className="font-medium">Total Amount</div>
-            <div className="text-sm text-gray-400">
+            <div className="font-medium text-white">Total Amount</div>
+            <div className="text-sm text-zinc-400">
               {formData.client_name ? `For ${formData.client_name}` : 'Enter client name above'}
             </div>
           </div>
-          <div className="text-xl font-bold">
+          <div className="text-xl font-bold text-white">
             {formData.amount_total ? 
               new Intl.NumberFormat('en-US', { 
                 style: 'currency', 
@@ -339,13 +346,13 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
+          className={`${outlineButtonStyles} px-4 py-2`}
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center"
+          className={`${primaryButtonStyles} px-6 py-2 flex items-center`}
           disabled={loading}
         >
           {loading && (
