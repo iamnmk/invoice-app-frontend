@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { FileText, Plus, Download, ArrowUpRight, MoreVertical, Check } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import InvoiceForm from './InvoiceForm';
 
 // UI Components
@@ -128,6 +130,7 @@ interface Invoice {
   due_date: string;
   created_at: string;
   service_id?: string;
+  notes?: string;
 }
 
 export default function InvoicesPage() {
@@ -142,9 +145,11 @@ export default function InvoicesPage() {
   const [dropdownOpenId, setDropdownOpenId] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
+  const [organization, setOrganization] = useState<{ id: string, name: string }>({ id: '', name: '' });
   
   useEffect(() => {
     fetchInvoices();
+    fetchOrganizationData();
   }, [organizationId]);
   
   const fetchInvoices = async () => {
@@ -184,6 +189,33 @@ export default function InvoicesPage() {
       setInvoices([]);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const fetchOrganizationData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('Token not found for organization fetch');
+        return;
+      }
+      
+      console.log('Fetching organization data for ID:', organizationId);
+      const response = await fetch(`/api/organizations/${organizationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Organization fetch failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Organization data received:', data);
+      setOrganization(data);
+    } catch (err) {
+      console.error('Error fetching organization data:', err);
     }
   };
   
@@ -288,6 +320,113 @@ export default function InvoicesPage() {
   const pendingAmount = invoices.filter(inv => ['Sent', 'Pending'].includes(inv.status)).reduce((sum, inv) => sum + inv.amount_total, 0);
   const overdueAmount = invoices.filter(inv => inv.status === 'Overdue').reduce((sum, inv) => sum + inv.amount_total, 0);
   
+  const handleDownloadInvoice = async (invoice: Invoice) => {
+    let orgName = "Unnamed Organization";
+    
+    // First try to use the organization name from state
+    if (organization && organization.name) {
+      orgName = organization.name;
+      console.log("Using cached organization name:", orgName);
+    } else {
+      // If not available, fetch it directly
+      try {
+        console.log("Fetching fresh organization data for PDF");
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Authentication required');
+        
+        const response = await fetch(`/api/organizations/${organizationId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) throw new Error(`Failed to fetch organization: ${response.status}`);
+        
+        const data = await response.json();
+        if (data && data.name) {
+          orgName = data.name;
+          console.log("Fresh organization name fetched:", orgName);
+          // Update state for future use
+          setOrganization(data);
+        }
+      } catch (err) {
+        console.error('Error fetching fresh organization data:', err);
+      }
+    }
+    
+    // Create a new jsPDF instance
+    const doc = new jsPDF();
+    
+    // Add header
+    doc.setFontSize(20);
+    doc.setTextColor(128, 0, 128); // Purple color
+    doc.text('INVOICE', 105, 20, { align: 'center' });
+    
+    // Use the organization name, with appropriate fallback
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    console.log("Using organization name in PDF:", orgName);
+    doc.text(orgName, 14, 30);
+    
+    // Add invoice details
+    doc.setFontSize(10);
+    doc.text(`Invoice Number: ${invoice.invoice_number}`, 140, 30);
+    doc.text(`Date: ${formatDate(invoice.created_at)}`, 140, 35);
+    doc.text(`Due Date: ${formatDate(invoice.due_date)}`, 140, 40);
+    doc.text(`Status: ${invoice.status}`, 140, 45);
+    
+    // Add client info
+    doc.setFontSize(12);
+    doc.text('Bill To:', 14, 65);
+    doc.setFontSize(10);
+    doc.text(invoice.client_name, 14, 70);
+    doc.text(invoice.client_email, 14, 75);
+    
+    // Add invoice items table
+    const itemTableData = [
+      ['Description', 'Quantity', 'Unit Price', 'Amount'],
+      ['Professional Services', '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
+    ];
+    
+    autoTable(doc, {
+      startY: 85,
+      head: [itemTableData[0]],
+      body: [itemTableData[1]],
+      theme: 'grid',
+      headStyles: { fillColor: [100, 50, 150], textColor: [255, 255, 255] },
+      styles: { lineColor: [200, 200, 200] }
+    });
+    
+    // Get the y position where the table ended
+    const finalY = (doc as any).lastAutoTable.finalY || 85 + 20;
+    
+    // Add total amount
+    doc.setFontSize(10);
+    doc.text('Subtotal:', 140, finalY + 10);
+    doc.text('Tax:', 140, finalY + 15);
+    doc.text('Total:', 140, finalY + 25);
+    
+    doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 10, { align: 'right' });
+    doc.text(formatCurrency(0, invoice.currency), 175, finalY + 15, { align: 'right' });
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 25, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    
+    // Add notes
+    if (invoice.notes) {
+      doc.text('Notes:', 14, finalY + 40);
+      doc.text(invoice.notes, 14, finalY + 45);
+    }
+    
+    // Add footer
+    doc.setFontSize(8);
+    doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+    
+    // Save the PDF
+    doc.save(`Invoice-${invoice.invoice_number}.pdf`);
+  };
+  
   return (
     <div className="p-6 text-white bg-black min-h-screen">
       <header className="flex items-center justify-between mb-8">
@@ -369,10 +508,6 @@ export default function InvoicesPage() {
             <CardTitle>Invoice List</CardTitle>
             <CardDescription className="text-zinc-400">Manage and track your client invoices</CardDescription>
           </div>
-          <Button variant="outline" size="sm" className="bg-zinc-900 border-zinc-800 hover:bg-zinc-800">
-            <Download className="size-3.5 mr-2" />
-            Export
-          </Button>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -446,6 +581,16 @@ export default function InvoicesPage() {
                               }}
                             >
                               <div className="py-1" role="menu" aria-orientation="vertical">
+                                <button
+                                  className="block w-full text-left px-4 py-2 text-sm text-green-400 hover:bg-zinc-700"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    handleDownloadInvoice(invoice);
+                                    setDropdownOpenId(null);
+                                  }}
+                                >
+                                  Download Invoice
+                                </button>
                                 <button
                                   className="block w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-zinc-700"
                                   role="menuitem"
