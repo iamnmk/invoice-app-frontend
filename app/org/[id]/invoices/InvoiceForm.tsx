@@ -1,0 +1,289 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+
+interface InvoiceFormProps {
+  organizationId: string;
+  onInvoiceCreated: (invoice: any) => void;
+  onCancel: () => void;
+}
+
+export default function InvoiceForm({ organizationId, onInvoiceCreated, onCancel }: InvoiceFormProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
+  const [formData, setFormData] = useState({
+    client_name: '',
+    client_email: '',
+    amount_total: '',
+    due_date: '',
+    currency: 'USD',
+    notes: '',
+    status: 'Draft'
+  });
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      // Validate amount
+      const amountValue = parseFloat(formData.amount_total);
+      if (isNaN(amountValue) || amountValue <= 0) {
+        setError('Please enter a valid amount');
+        setLoading(false);
+        return;
+      }
+      
+      // Generate invoice number
+      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      
+      const response = await fetch(`/api/invoices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          organization_id: organizationId,
+          invoice_number: invoiceNumber,
+          client_name: formData.client_name,
+          client_email: formData.client_email,
+          status: formData.status,
+          amount_total: parseFloat(formData.amount_total),
+          due_date: formData.due_date,
+          currency: formData.currency,
+          notes: formData.notes
+        })
+      });
+      
+      let newInvoice;
+      try {
+        newInvoice = await response.json();
+      } catch (jsonError) {
+        console.error('Error parsing invoice JSON:', jsonError);
+        throw new Error('Failed to parse server response');
+      }
+
+      if (!response.ok) {
+        throw new Error(newInvoice?.error || 'Failed to create invoice');
+      }
+      
+      onInvoiceCreated(newInvoice);
+    } catch (err: unknown) {
+      console.error('Error creating invoice:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="text-white">
+      {error && (
+        <div className="bg-gray-800 border border-red-500 text-red-300 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div>
+          <h3 className="text-lg font-medium mb-4">Client Information</h3>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="client_name" className="block text-sm font-medium text-gray-300 mb-1">
+                Client Name *
+              </label>
+              <input
+                type="text"
+                id="client_name"
+                name="client_name"
+                value={formData.client_name}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                required
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="client_email" className="block text-sm font-medium text-gray-300 mb-1">
+                Client Email *
+              </label>
+              <input
+                type="email"
+                id="client_email"
+                name="client_email"
+                value={formData.client_email}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                required
+              />
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-lg font-medium mb-4">Invoice Details</h3>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="amount_total" className="block text-sm font-medium text-gray-300 mb-1">
+                Amount *
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-400">
+                    {formData.currency === 'USD' ? '$' : 
+                     formData.currency === 'EUR' ? '€' : 
+                     formData.currency === 'GBP' ? '£' : 
+                     formData.currency}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  id="amount_total"
+                  name="amount_total"
+                  min="0.01"
+                  step="0.01"
+                  value={formData.amount_total}
+                  onChange={handleInputChange}
+                  className="w-full pl-8 px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                  required
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label htmlFor="due_date" className="block text-sm font-medium text-gray-300 mb-1">
+                Due Date *
+              </label>
+              <input
+                type="date"
+                id="due_date"
+                name="due_date"
+                value={formData.due_date}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                required
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="currency" className="block text-sm font-medium text-gray-300 mb-1">
+                Currency
+              </label>
+              <select
+                id="currency"
+                name="currency"
+                value={formData.currency}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              >
+                <option value="USD">USD - US Dollar</option>
+                <option value="EUR">EUR - Euro</option>
+                <option value="GBP">GBP - British Pound</option>
+                <option value="JPY">JPY - Japanese Yen</option>
+                <option value="CAD">CAD - Canadian Dollar</option>
+                <option value="AUD">AUD - Australian Dollar</option>
+                <option value="INR">INR - Indian Rupee</option>
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">
+                Status
+              </label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              >
+                <option value="Draft">Draft</option>
+                <option value="Sent">Sent</option>
+                <option value="Paid">Paid</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mb-6">
+        <h3 className="text-lg font-medium mb-4">Additional Details</h3>
+        <div>
+          <label htmlFor="notes" className="block text-sm font-medium text-gray-300 mb-1">
+            Notes
+          </label>
+          <textarea
+            id="notes"
+            name="notes"
+            value={formData.notes}
+            onChange={handleInputChange}
+            rows={3}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white resize-none"
+          ></textarea>
+        </div>
+      </div>
+      
+      <div className="bg-gray-800 p-4 rounded-lg mb-6">
+        <h3 className="font-medium mb-2">Invoice Summary</h3>
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="font-medium">Total Amount</div>
+            <div className="text-sm text-gray-400">
+              {formData.client_name ? `For ${formData.client_name}` : 'Enter client name above'}
+            </div>
+          </div>
+          <div className="text-xl font-bold">
+            {formData.amount_total ? 
+              new Intl.NumberFormat('en-US', { 
+                style: 'currency', 
+                currency: formData.currency 
+              }).format(parseFloat(formData.amount_total)) : 
+              '0.00'
+            }
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center"
+          disabled={loading}
+        >
+          {loading && (
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          )}
+          Create Invoice
+        </button>
+      </div>
+    </form>
+  );
+} 

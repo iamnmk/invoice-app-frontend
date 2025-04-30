@@ -1,241 +1,286 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { FileText, Plus, Download, ArrowUpRight, CreditCard, User, Building } from 'lucide-react';
 
 interface DashboardData {
   organization: {
+    id: string;
     name: string;
+    industry: string;
     subscription_plan: string;
+    created_at: string;
   };
-  user_stats: {
-    total_users: number;
-    admin_count: number;
+  userStats: {
+    total: number;
+    admins: number;
+    members: number;
   };
-  invoice_stats: {
-    total_invoices: number;
-    total_paid: number;
-    total_pending: number;
-    draft_count: number;
-    sent_count: number;
-    paid_count: number;
-    overdue_count: number;
+  invoiceStats: {
+    total: number;
+    paid: number;
+    pending: number;
+    overdue: number;
+    totalAmount: number;
+    currency: string;
   };
-  recent_invoices: Array<{
+  recentInvoices: Array<{
     id: string;
     invoice_number: string;
     client_name: string;
     amount_total: number;
     status: string;
     due_date: string;
+    created_at: string;
   }>;
-  service_stats: {
-    total_services: number;
-  };
+  monthlyRevenue: Array<{
+    month: string;
+    revenue: number;
+  }>;
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const params = useParams();
-  const orgId = params.id as string;
+  const organizationId = params.id as string;
   
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
+  
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setError('Authentication required');
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`http://localhost:3001/api/dashboard/organization/${orgId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data');
-        }
-
-        const data = await response.json();
-        setDashboardData(data);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchDashboardData();
-  }, [orgId]);
-
+  }, [organizationId]);
+  
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Use the Next.js API route
+      const response = await fetch(`/api/dashboard/${organizationId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Dashboard data received:', data);
+      setDashboardData(data);
+    } catch (err) {
+      console.error('Error in fetchDashboardData:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      setDashboardData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const formatCurrency = (amount: number, currency: string = 'USD') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency
+    }).format(amount);
+  };
+  
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+  
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Paid':
+        return 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20';
+      case 'Overdue':
+        return 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/20';
+      case 'Draft':
+        return 'bg-gray-600/20 text-gray-400 hover:bg-gray-600/20';
+      case 'Sent':
+      case 'Pending':
+        return 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/20';
+      default:
+        return 'bg-gray-600/20 text-gray-400 hover:bg-gray-600/20';
+    }
+  };
+  
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-full">
-        <p className="text-xl">Loading dashboard data...</p>
+      <div className="flex justify-center items-center h-64 text-white">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
       </div>
     );
   }
-
-  if (error) {
+  
+  if (error && !dashboardData) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+      <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6">
         <p className="font-bold">Error</p>
         <p>{error}</p>
       </div>
     );
   }
-
-  // For demo purposes, display dummy data if real data isn't available
-  const stats = dashboardData || {
-    organization: { name: 'Your Organization', subscription_plan: 'Free' },
-    user_stats: { total_users: 1, admin_count: 1 },
-    invoice_stats: {
-      total_invoices: 0,
-      total_paid: 0,
-      total_pending: 0,
-      draft_count: 0,
-      sent_count: 0,
-      paid_count: 0,
-      overdue_count: 0
-    },
-    recent_invoices: [],
-    service_stats: { total_services: 0 }
-  };
-
+  
+  if (!dashboardData) {
+    return (
+      <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-3 rounded-lg mb-6">
+        <p className="font-bold">No Data</p>
+        <p>No dashboard data is available.</p>
+      </div>
+    );
+  }
+  
+  const { organization, invoiceStats, recentInvoices } = dashboardData;
+  
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-      
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium mb-1">Total Users</h3>
-          <p className="text-2xl font-bold">{stats.user_stats.total_users}</p>
-          <p className="text-sm text-gray-600">{stats.user_stats.admin_count} Admin(s)</p>
-        </div>
+    <div className="text-white bg-black min-h-screen">
+      <div className="p-6">
+        <header className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+            <p className="text-zinc-400 mt-1">Welcome to {organization.name}</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <button onClick={fetchDashboardData} className="bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 rounded-md px-4 py-2 text-white">
+              Refresh
+            </button>
+          </div>
+        </header>
         
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium mb-1">Total Invoices</h3>
-          <p className="text-2xl font-bold">{stats.invoice_stats.total_invoices}</p>
-          <div className="flex justify-between text-sm">
-            <span className="text-green-600">{stats.invoice_stats.paid_count} Paid</span>
-            <span className="text-orange-500">{stats.invoice_stats.overdue_count} Overdue</span>
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+        
+        {/* Organization Info */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm rounded-lg shadow-md p-6 hover:bg-zinc-900/70 transition-colors">
+            <div className="flex items-center mb-4">
+              <Building className="h-6 w-6 text-purple-500 mr-3" />
+              <h2 className="text-lg font-medium">Organization Info</h2>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <p className="text-zinc-400 text-sm">Name</p>
+                <p className="font-medium">{organization.name}</p>
+              </div>
+              <div>
+                <p className="text-zinc-400 text-sm">Industry</p>
+                <p className="font-medium">{organization.industry}</p>
+              </div>
+              <div>
+                <p className="text-zinc-400 text-sm">Subscription</p>
+                <p className="font-medium">{organization.subscription_plan}</p>
+              </div>
+              <div>
+                <p className="text-zinc-400 text-sm">Joined</p>
+                <p className="font-medium">{formatDate(organization.created_at)}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Summary Cards */}
+          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Total Invoices */}
+            <div className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm rounded-lg shadow-md p-5 hover:bg-zinc-900/70 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-zinc-400 text-sm font-medium">Total Invoices</p>
+                <FileText className="h-5 w-5 text-purple-500" />
+              </div>
+              <p className="text-2xl font-bold">{invoiceStats.total}</p>
+              <p className="text-zinc-400 text-sm mt-1">
+                {formatCurrency(invoiceStats.totalAmount, invoiceStats.currency)}
+              </p>
+            </div>
+            
+            {/* Paid Invoices */}
+            <div className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm rounded-lg shadow-md p-5 hover:bg-zinc-900/70 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-zinc-400 text-sm font-medium">Paid</p>
+                <div className="text-emerald-500">
+                  <ArrowUpRight className="h-5 w-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold">{invoiceStats.paid}</p>
+              <p className="text-emerald-500 text-sm mt-1">
+                {formatCurrency(invoiceStats.totalAmount * (invoiceStats.paid / invoiceStats.total || 0), invoiceStats.currency)}
+              </p>
+            </div>
+            
+            {/* Pending Invoices */}
+            <div className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm rounded-lg shadow-md p-5 hover:bg-zinc-900/70 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-zinc-400 text-sm font-medium">Outstanding</p>
+                <div className="text-amber-500">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+              </div>
+              <p className="text-2xl font-bold">{invoiceStats.pending + invoiceStats.overdue}</p>
+              <p className="text-amber-500 text-sm mt-1">
+                {formatCurrency(invoiceStats.totalAmount * ((invoiceStats.pending + invoiceStats.overdue) / invoiceStats.total || 0), invoiceStats.currency)}
+              </p>
+            </div>
           </div>
         </div>
         
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium mb-1">Revenue</h3>
-          <p className="text-2xl font-bold">${stats.invoice_stats.total_paid || 0}</p>
-          <p className="text-sm text-orange-500">
-            ${stats.invoice_stats.total_pending || 0} pending
-          </p>
-        </div>
-        
-        <div className="bg-white p-4 rounded-lg shadow">
-          <h3 className="text-gray-500 text-sm font-medium mb-1">Subscription</h3>
-          <p className="text-2xl font-bold">{stats.organization.subscription_plan}</p>
-          <p className="text-sm text-gray-600">Upgrade for more features</p>
-        </div>
-      </div>
-      
-      {/* Recent Invoices */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">Recent Invoices</h2>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Invoice Number
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {stats.recent_invoices.length > 0 ? (
-                stats.recent_invoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {invoice.invoice_number}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {invoice.client_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      ${invoice.amount_total}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          invoice.status === 'Paid'
-                            ? 'bg-green-100 text-green-800'
-                            : invoice.status === 'Overdue'
-                            ? 'bg-red-100 text-red-800'
-                            : invoice.status === 'Sent'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {invoice.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(invoice.due_date).toLocaleDateString()}
-                    </td>
+        {/* Recent Invoices */}
+        <div className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm rounded-lg shadow-md hover:bg-zinc-900/70 transition-colors mb-6">
+          <div className="flex justify-between items-center p-6 border-b border-zinc-800">
+            <div>
+              <h2 className="text-lg font-medium">Recent Invoices</h2>
+              <p className="text-zinc-400 text-sm">Latest invoice activity</p>
+            </div>
+            <Link href={`/org/${organizationId}/invoices`} className="bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 rounded-md px-4 py-2 text-sm inline-flex items-center">
+              <Download className="h-4 w-4 mr-2" />
+              View All
+            </Link>
+          </div>
+          
+          {recentInvoices.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 mx-auto text-gray-500 mb-4" />
+              <p className="text-gray-400 text-lg">No invoices available</p>
+              <p className="text-gray-500 mt-2">Create your first invoice to get started</p>
+            </div>
+          ) : (
+            <div className="rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-zinc-800/50">
+                    <th className="text-left p-3 text-xs font-medium text-zinc-400">INVOICE</th>
+                    <th className="text-left p-3 text-xs font-medium text-zinc-400">CLIENT</th>
+                    <th className="text-left p-3 text-xs font-medium text-zinc-400">AMOUNT</th>
+                    <th className="text-left p-3 text-xs font-medium text-zinc-400">DATE</th>
+                    <th className="text-left p-3 text-xs font-medium text-zinc-400">STATUS</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
-                    No invoices yet. Create your first invoice to get started!
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">Quick Actions</h2>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {recentInvoices.map((invoice) => (
+                    <tr key={invoice.id} className="hover:bg-zinc-800/30">
+                      <td className="p-3 text-white font-medium text-purple-400">{invoice.invoice_number}</td>
+                      <td className="p-3 text-white">{invoice.client_name}</td>
+                      <td className="p-3 text-white">{formatCurrency(invoice.amount_total, invoiceStats.currency)}</td>
+                      <td className="p-3 text-zinc-400">{formatDate(invoice.due_date)}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(invoice.status)}`}>
+                          {invoice.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
         
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-            Create New Invoice
-          </button>
-          {stats.user_stats.total_users === 1 && (
-            <button className="w-full py-2 px-4 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors">
-              Invite Team Members
-            </button>
-          )}
-          <button className="w-full py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
-            Add New Client
-          </button>
-        </div>
+      
       </div>
     </div>
   );
-} 
+}
