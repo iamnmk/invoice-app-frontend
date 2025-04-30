@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { FileText, Plus, Download, ArrowUpRight } from 'lucide-react';
+import { FileText, Plus, Download, ArrowUpRight, MoreVertical, Check } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import InvoiceForm from './InvoiceForm';
 
 // UI Components
@@ -10,6 +11,110 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Define color functions before their use in components
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'Paid':
+      return 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20';
+    case 'Overdue':
+      return 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/20';
+    case 'Draft':
+      return 'bg-gray-600/20 text-gray-400 hover:bg-gray-600/20';
+    case 'Sent':
+    case 'Pending':
+      return 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/20';
+    default:
+      return 'bg-gray-600/20 text-gray-400 hover:bg-gray-600/20';
+  }
+};
+
+// Portal component for rendering dropdowns outside of parent containers
+const Portal = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  return mounted ? createPortal(children, document.body) : null;
+};
+
+// Status Dropdown with Portal implementation
+const StatusDropdown = ({ 
+  currentStatus, 
+  onStatusChange,
+  position
+}: { 
+  currentStatus: string;
+  onStatusChange: (newStatus: string) => void;
+  position: { x: number; y: number };
+}) => {
+  const [open, setOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState(position);
+  const statuses = ['Draft', 'Sent', 'Pending', 'Paid', 'Overdue'];
+  
+  const handleClick = (event: React.MouseEvent) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setDropdownPosition({
+      x: rect.left,
+      y: rect.bottom + window.scrollY
+    });
+    setOpen(!open);
+  };
+  
+  return (
+    <>
+      <Badge 
+        className={`cursor-pointer ${getStatusColor(currentStatus)}`}
+        onClick={handleClick}
+      >
+        {currentStatus}
+      </Badge>
+      
+      {open && (
+        <Portal>
+          <div 
+            className="fixed inset-0 h-full w-full bg-transparent"
+            style={{ zIndex: 9998 }} 
+            onClick={() => setOpen(false)} 
+          />
+          <div 
+            className="fixed rounded-md shadow-lg bg-zinc-800 ring-1 ring-black ring-opacity-5"
+            style={{ 
+              zIndex: 9999,
+              top: dropdownPosition.y,
+              left: dropdownPosition.x,
+              width: '200px' 
+            }}
+          >
+            <div className="py-1" role="menu" aria-orientation="vertical">
+              {statuses.map(status => (
+                <button
+                  key={status}
+                  className={`flex items-center w-full text-left px-4 py-2 text-sm hover:bg-zinc-700 ${
+                    status === currentStatus ? 'bg-zinc-700' : ''
+                  }`}
+                  role="menuitem"
+                  onClick={() => {
+                    onStatusChange(status);
+                    setOpen(false);
+                  }}
+                >
+                  {status === currentStatus && <Check className="h-4 w-4 mr-2" />}
+                  <span className={status === currentStatus ? 'ml-0' : 'ml-6'}>
+                    {status}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Portal>
+      )}
+    </>
+  );
+};
 
 interface Invoice {
   id: string;
@@ -34,6 +139,9 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [showInvoiceForm, setShowInvoiceForm] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
+  const [dropdownOpenId, setDropdownOpenId] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
+  const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
   
   useEffect(() => {
     fetchInvoices();
@@ -82,22 +190,76 @@ export default function InvoicesPage() {
   const handleInvoiceCreated = (newInvoice: Invoice) => {
     setInvoices([newInvoice, ...invoices]);
     setShowInvoiceForm(false);
+    setEditInvoiceId(null);
   };
   
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Paid':
-        return 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20';
-      case 'Overdue':
-        return 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/20';
-      case 'Draft':
-        return 'bg-gray-600/20 text-gray-400 hover:bg-gray-600/20';
-      case 'Sent':
-      case 'Pending':
-        return 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/20';
-      default:
-        return 'bg-gray-600/20 text-gray-400 hover:bg-gray-600/20';
+  const updateInvoiceStatus = async (id: string, newStatus: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      const response = await fetch(`/api/invoices/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      // Update the invoices state with the new status
+      setInvoices(invoices.map(invoice => 
+        invoice.id === id ? { ...invoice, status: newStatus } : invoice
+      ));
+      
+    } catch (err) {
+      console.error('Error updating invoice status:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
+  };
+  
+  const handleDeleteInvoice = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) {
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      const response = await fetch(`/api/invoices/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      // Remove the deleted invoice from state
+      setInvoices(invoices.filter(invoice => invoice.id !== id));
+      
+    } catch (err) {
+      console.error('Error deleting invoice:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    }
+  };
+  
+  const handleEditInvoice = (id: string) => {
+    setEditInvoiceId(id);
+    setShowInvoiceForm(true);
   };
   
   const formatCurrency = (amount: number, currency: string) => {
@@ -244,20 +406,70 @@ export default function InvoicesPage() {
                       <td className="p-3 text-white">{formatCurrency(invoice.amount_total, invoice.currency)}</td>
                       <td className="p-3 text-zinc-400">{formatDate(invoice.due_date)}</td>
                       <td className="p-3">
-                        <Badge className={getStatusColor(invoice.status)}>
-                          {invoice.status}
-                        </Badge>
+                        <StatusDropdown 
+                          currentStatus={invoice.status}
+                          onStatusChange={(newStatus) => updateInvoiceStatus(invoice.id, newStatus)}
+                          position={{ x: 0, y: 0 }} // Will be calculated on click
+                        />
                       </td>
                       <td className="p-3 whitespace-nowrap">
-                        <Button variant="ghost" size="sm" className="text-blue-500 hover:text-blue-400 hover:bg-blue-500/10">
-                          View
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-zinc-400 hover:text-white hover:bg-zinc-800"
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setDropdownPosition({
+                              x: rect.left,
+                              y: rect.bottom + window.scrollY
+                            });
+                            setDropdownOpenId(dropdownOpenId === invoice.id ? null : invoice.id);
+                          }}
+                        >
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10">
-                          Send
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10">
-                          Delete
-                        </Button>
+                        
+                        {dropdownOpenId === invoice.id && (
+                          <Portal>
+                            <div 
+                              className="fixed inset-0 h-full w-full bg-transparent"
+                              style={{ zIndex: 9998 }} 
+                              onClick={() => setDropdownOpenId(null)}
+                            />
+                            <div 
+                              className="fixed rounded-md shadow-lg bg-zinc-800 ring-1 ring-black ring-opacity-5"
+                              style={{ 
+                                zIndex: 9999,
+                                top: dropdownPosition.y,
+                                left: dropdownPosition.x,
+                                width: '150px'
+                              }}
+                            >
+                              <div className="py-1" role="menu" aria-orientation="vertical">
+                                <button
+                                  className="block w-full text-left px-4 py-2 text-sm text-blue-400 hover:bg-zinc-700"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    handleEditInvoice(invoice.id);
+                                    setDropdownOpenId(null);
+                                  }}
+                                >
+                                  Edit Invoice
+                                </button>
+                                <button
+                                  className="block w-full text-left px-4 py-2 text-sm text-rose-400 hover:bg-zinc-700"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    handleDeleteInvoice(invoice.id);
+                                    setDropdownOpenId(null);
+                                  }}
+                                >
+                                  Delete Invoice
+                                </button>
+                              </div>
+                            </div>
+                          </Portal>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -272,13 +484,19 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-900 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-zinc-800">
             <div className="px-6 py-4 border-b border-zinc-800">
-              <h2 className="text-xl font-bold text-white">Generate New Invoice</h2>
+              <h2 className="text-xl font-bold text-white">
+                {editInvoiceId ? 'Edit Invoice' : 'Generate New Invoice'}
+              </h2>
             </div>
             <div className="p-6">
               <InvoiceForm 
                 organizationId={organizationId}
+                invoiceId={editInvoiceId}
                 onInvoiceCreated={handleInvoiceCreated}
-                onCancel={() => setShowInvoiceForm(false)}
+                onCancel={() => {
+                  setShowInvoiceForm(false);
+                  setEditInvoiceId(null);
+                }}
               />
             </div>
           </div>

@@ -4,13 +4,15 @@ import { useState, useEffect } from 'react';
 
 interface InvoiceFormProps {
   organizationId: string;
+  invoiceId?: string | null;
   onInvoiceCreated: (invoice: any) => void;
   onCancel: () => void;
 }
 
-export default function InvoiceForm({ organizationId, onInvoiceCreated, onCancel }: InvoiceFormProps) {
+export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreated, onCancel }: InvoiceFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isEdit, setIsEdit] = useState(false);
   
   const [formData, setFormData] = useState({
     client_name: '',
@@ -21,6 +23,58 @@ export default function InvoiceForm({ organizationId, onInvoiceCreated, onCancel
     notes: '',
     status: 'Draft'
   });
+  
+  // Fetch invoice data if editing an existing invoice
+  useEffect(() => {
+    if (invoiceId) {
+      setIsEdit(true);
+      fetchInvoiceData();
+    }
+  }, [invoiceId]);
+  
+  const fetchInvoiceData = async () => {
+    if (!invoiceId) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      const response = await fetch(`/api/invoices/${invoiceId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      const invoice = await response.json();
+      
+      // Format the date to match the input format (YYYY-MM-DD)
+      const dueDate = new Date(invoice.due_date);
+      const formattedDueDate = dueDate.toISOString().split('T')[0];
+      
+      setFormData({
+        client_name: invoice.client_name,
+        client_email: invoice.client_email,
+        amount_total: invoice.amount_total.toString(),
+        due_date: formattedDueDate,
+        currency: invoice.currency || 'USD',
+        notes: invoice.notes || '',
+        status: invoice.status
+      });
+    } catch (err) {
+      console.error('Error fetching invoice:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -50,43 +104,62 @@ export default function InvoiceForm({ organizationId, onInvoiceCreated, onCancel
         return;
       }
       
-      // Generate invoice number
-      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+      // Prepare request data
+      const invoiceData = {
+        organization_id: organizationId,
+        client_name: formData.client_name,
+        client_email: formData.client_email,
+        status: formData.status,
+        amount_total: parseFloat(formData.amount_total),
+        due_date: formData.due_date,
+        currency: formData.currency,
+        notes: formData.notes
+      };
       
-      const response = await fetch(`/api/invoices`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          organization_id: organizationId,
-          invoice_number: invoiceNumber,
-          client_name: formData.client_name,
-          client_email: formData.client_email,
-          status: formData.status,
-          amount_total: parseFloat(formData.amount_total),
-          due_date: formData.due_date,
-          currency: formData.currency,
-          notes: formData.notes
-        })
-      });
+      let response;
+      let responseData;
       
-      let newInvoice;
+      if (isEdit && invoiceId) {
+        // Update existing invoice
+        response = await fetch(`/api/invoices/${invoiceId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(invoiceData)
+        });
+      } else {
+        // Create new invoice with generated invoice number
+        const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+        
+        response = await fetch(`/api/invoices`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            ...invoiceData,
+            invoice_number: invoiceNumber
+          })
+        });
+      }
+      
       try {
-        newInvoice = await response.json();
+        responseData = await response.json();
       } catch (jsonError) {
         console.error('Error parsing invoice JSON:', jsonError);
         throw new Error('Failed to parse server response');
       }
 
       if (!response.ok) {
-        throw new Error(newInvoice?.error || 'Failed to create invoice');
+        throw new Error(responseData?.error || `Failed to ${isEdit ? 'update' : 'create'} invoice`);
       }
       
-      onInvoiceCreated(newInvoice);
+      onInvoiceCreated(responseData);
     } catch (err: unknown) {
-      console.error('Error creating invoice:', err);
+      console.error(`Error ${isEdit ? 'updating' : 'creating'} invoice:`, err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
@@ -281,7 +354,7 @@ export default function InvoiceForm({ organizationId, onInvoiceCreated, onCancel
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
           )}
-          Create Invoice
+          {isEdit ? 'Update' : 'Create'} Invoice
         </button>
       </div>
     </form>
