@@ -149,7 +149,7 @@ export default function OrganizationLayout({ children }: LayoutProps) {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-6">
               <div className="flex-shrink-0 pl-2">
-                <span className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600">
+                <span className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-orange-600">
                   INVOICERR
                 </span>
               </div>
@@ -181,8 +181,8 @@ export default function OrganizationLayout({ children }: LayoutProps) {
                 href={`/org/${orgId}/dashboard`}
                 className={`flex items-center p-3 rounded-lg font-medium transition-all duration-200 
                 ${isActiveRoute('/dashboard') 
-                  ? 'bg-gradient-to-r from-purple-100 to-blue-50 text-purple-600 pl-4 shadow-sm' 
-                  : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 hover:text-purple-600 hover:pl-4 hover:shadow-sm'}`}
+                  ? 'bg-gradient-to-r from-orange-100 to-orange-50 text-orange-600 pl-4 shadow-sm' 
+                  : 'hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-50 hover:text-orange-600 hover:pl-4 hover:shadow-sm'}`}
               >
                 <LayoutDashboard className="w-5 h-5 mr-3" />
                 Dashboard
@@ -193,8 +193,8 @@ export default function OrganizationLayout({ children }: LayoutProps) {
                 href={`/org/${orgId}/invoices`}
                 className={`flex items-center p-3 rounded-lg font-medium transition-all duration-200 
                 ${isActiveRoute('/invoices') 
-                  ? 'bg-gradient-to-r from-purple-100 to-blue-50 text-purple-600 pl-4 shadow-sm' 
-                  : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 hover:text-purple-600 hover:pl-4 hover:shadow-sm'}`}
+                  ? 'bg-gradient-to-r from-orange-100 to-orange-50 text-orange-600 pl-4 shadow-sm' 
+                  : 'hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-50 hover:text-orange-600 hover:pl-4 hover:shadow-sm'}`}
               >
                 <FileText className="w-5 h-5 mr-3" />
                 Invoices
@@ -205,8 +205,8 @@ export default function OrganizationLayout({ children }: LayoutProps) {
                 href={`/org/${orgId}/users`}
                 className={`flex items-center p-3 rounded-lg font-medium transition-all duration-200 
                 ${isActiveRoute('/users') 
-                  ? 'bg-gradient-to-r from-purple-100 to-blue-50 text-purple-600 pl-4 shadow-sm' 
-                  : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 hover:text-purple-600 hover:pl-4 hover:shadow-sm'}`}
+                  ? 'bg-gradient-to-r from-orange-100 to-orange-50 text-orange-600 pl-4 shadow-sm' 
+                  : 'hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-50 hover:text-orange-600 hover:pl-4 hover:shadow-sm'}`}
               >
                 <Users className="w-5 h-5 mr-3" />
                 Users
@@ -217,8 +217,8 @@ export default function OrganizationLayout({ children }: LayoutProps) {
                 href={`/org/${orgId}/settings`}
                 className={`flex items-center p-3 rounded-lg font-medium transition-all duration-200 
                 ${isActiveRoute('/settings') 
-                  ? 'bg-gradient-to-r from-purple-100 to-blue-50 text-purple-600 pl-4 shadow-sm' 
-                  : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 hover:text-purple-600 hover:pl-4 hover:shadow-sm'}`}
+                  ? 'bg-gradient-to-r from-orange-100 to-orange-50 text-orange-600 pl-4 shadow-sm' 
+                  : 'hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-50 hover:text-orange-600 hover:pl-4 hover:shadow-sm'}`}
               >
                 <Settings className="w-5 h-5 mr-3" />
                 Settings

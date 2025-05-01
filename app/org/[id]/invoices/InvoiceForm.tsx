@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 
 // Add custom button styles
-const buttonBaseStyles = "relative inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 ease-in-out transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:ring-offset-2 focus:ring-offset-zinc-900";
-const primaryButtonStyles = `${buttonBaseStyles} bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-md hover:shadow-lg hover:shadow-purple-500/20`;
+const buttonBaseStyles = "relative inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 ease-in-out transform hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:ring-offset-2 focus:ring-offset-zinc-900";
+const primaryButtonStyles = `${buttonBaseStyles} bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg hover:shadow-orange-500/20`;
 const outlineButtonStyles = `${buttonBaseStyles} bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-600 text-white`;
 
 interface Service {

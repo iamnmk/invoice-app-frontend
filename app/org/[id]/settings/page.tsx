@@ -264,215 +264,190 @@ export default function SettingsPage() {
       </header>
       
       {error && (
-        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6 flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <AlertCircle className="h-5 w-5 mr-2" />
+            {error}
+          </div>
+          <button 
+            onClick={() => setError(null)} 
+            className="text-rose-400 hover:text-rose-300"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
       )}
       
       {success && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-lg mb-6 flex items-center">
-          <Check className="h-5 w-5 mr-2" />
-          {success}
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <Check className="h-5 w-5 mr-2" />
+            {success}
+          </div>
+          <button 
+            onClick={() => setSuccess(null)} 
+            className="text-emerald-400 hover:text-emerald-300"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
       )}
       
-      <Tabs defaultValue="services" className="w-full">
-        <TabsList className="grid grid-cols-1 md:grid-cols-3 bg-zinc-900/50 border border-zinc-800 rounded-lg mb-8">
-          <TabsTrigger value="services" className="text-center py-3">
-            Services
-          </TabsTrigger>
-          <TabsTrigger value="organization" className="text-center py-3">
-            Organization
-          </TabsTrigger>
-          <TabsTrigger value="billing" className="text-center py-3">
-            Billing
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="services">
-          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm hover:bg-zinc-900/70 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Manage Services</CardTitle>
-                <CardDescription className="text-zinc-400">
-                  Create and manage services that you offer to clients
-                </CardDescription>
+      {/* Services Section - Now outside tabs */}
+      <div className="mb-8">
+        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm hover:bg-zinc-900/70 transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Manage Services</CardTitle>
+              <CardDescription className="text-zinc-400">
+                Create and manage services that you offer to clients
+              </CardDescription>
+            </div>
+            <Button 
+              onClick={() => setShowAddModal(true)}
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Service
+            </Button>
+          </CardHeader>
+          
+          <CardContent>
+            {/* Services List */}
+            {loading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
               </div>
-              <Button 
-                onClick={() => setShowAddModal(true)}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-              >
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Add Service
-              </Button>
-            </CardHeader>
-            
-            <CardContent>
-              {/* Services List */}
-              {loading ? (
-                <div className="flex justify-center items-center py-12">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
+            ) : services.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mx-auto bg-zinc-800/50 rounded-full h-16 w-16 flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
                 </div>
-              ) : services.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="mx-auto bg-zinc-800/50 rounded-full h-16 w-16 flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  </div>
-                  <p className="text-zinc-400 text-lg">No services available</p>
-                  <p className="text-zinc-500 mt-2">Click the "Add Service" button to create your first service.</p>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-zinc-800 overflow-hidden">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-zinc-800/50">
-                        <th className="text-left p-3 text-xs font-medium text-zinc-400">NAME</th>
-                        <th className="text-left p-3 text-xs font-medium text-zinc-400">DESCRIPTION</th>
-                        <th className="text-left p-3 text-xs font-medium text-zinc-400">PAYMENT LINK</th>
-                        <th className="text-left p-3 text-xs font-medium text-zinc-400">ACTIONS</th>
+                <p className="text-zinc-400 text-lg">No services available</p>
+                <p className="text-zinc-500 mt-2">Click the "Add Service" button to create your first service.</p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-zinc-800 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-zinc-800/50">
+                      <th className="text-left p-3 text-xs font-medium text-zinc-400">NAME</th>
+                      <th className="text-left p-3 text-xs font-medium text-zinc-400">DESCRIPTION</th>
+                      <th className="text-left p-3 text-xs font-medium text-zinc-400">PAYMENT LINK</th>
+                      <th className="text-left p-3 text-xs font-medium text-zinc-400">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800">
+                    {services.map((service) => (
+                      <tr key={service.id} className="hover:bg-zinc-800/30">
+                        {editingServiceId === service.id ? (
+                          // Edit mode
+                          <>
+                            <td className="p-3">
+                              <Input 
+                                value={editFormData.name}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditFormData({...editFormData, name: e.target.value})}
+                                className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                                required
+                                autoFocus
+                              />
+                            </td>
+                            <td className="p-3">
+                              <Textarea 
+                                value={editFormData.description}
+                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditFormData({...editFormData, description: e.target.value})}
+                                className="bg-zinc-800 border-zinc-700 min-h-[80px] focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <Input 
+                                value={editFormData.payment_link}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditFormData({...editFormData, payment_link: e.target.value})}
+                                className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                              />
+                            </td>
+                            <td className="p-3 whitespace-nowrap">
+                              <div className="flex space-x-2">
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => handleUpdateService(service.id)}
+                                  className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                >
+                                  <Check className="h-4 w-4 mr-1" />
+                                  Save
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={handleCancelEdit}
+                                  className="bg-zinc-800 border-zinc-700"
+                                >
+                                  <X className="h-4 w-4 mr-1" />
+                                  Cancel
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          // View mode
+                          <>
+                            <td className="p-3 text-white font-medium">{service.name}</td>
+                            <td className="p-3 text-zinc-400">
+                              {service.description ? (
+                                <span className="line-clamp-2">{service.description}</span>
+                              ) : (
+                                <span className="text-zinc-500 italic">No description</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-zinc-400">
+                              {service.payment_link ? (
+                                <a 
+                                  href={service.payment_link} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-blue-400 hover:underline truncate max-w-xs block"
+                                >
+                                  {service.payment_link}
+                                </a>
+                              ) : (
+                                <span className="text-zinc-500 italic">No payment link</span>
+                              )}
+                            </td>
+                            <td className="p-3 whitespace-nowrap">
+                              <div className="flex space-x-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => handleStartEdit(service)}
+                                  className="bg-zinc-800 border-zinc-700"
+                                >
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => handleDeleteService(service.id)}
+                                  className="bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border-transparent"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </>
+                        )}
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-800">
-                      {services.map((service) => (
-                        <tr key={service.id} className="hover:bg-zinc-800/30">
-                          {editingServiceId === service.id ? (
-                            // Edit mode
-                            <>
-                              <td className="p-3">
-                                <Input 
-                                  value={editFormData.name}
-                                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditFormData({...editFormData, name: e.target.value})}
-                                  className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                  required
-                                  autoFocus
-                                />
-                              </td>
-                              <td className="p-3">
-                                <Textarea 
-                                  value={editFormData.description}
-                                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditFormData({...editFormData, description: e.target.value})}
-                                  className="bg-zinc-800 border-zinc-700 min-h-[80px] focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                />
-                              </td>
-                              <td className="p-3">
-                                <Input 
-                                  value={editFormData.payment_link}
-                                  onChange={(e: ChangeEvent<HTMLInputElement>) => setEditFormData({...editFormData, payment_link: e.target.value})}
-                                  className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                                />
-                              </td>
-                              <td className="p-3 whitespace-nowrap">
-                                <div className="flex space-x-2">
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handleUpdateService(service.id)}
-                                    className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                                  >
-                                    <Check className="h-4 w-4 mr-1" />
-                                    Save
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={handleCancelEdit}
-                                    className="bg-zinc-800 border-zinc-700"
-                                  >
-                                    <X className="h-4 w-4 mr-1" />
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </td>
-                            </>
-                          ) : (
-                            // View mode
-                            <>
-                              <td className="p-3 text-white font-medium">{service.name}</td>
-                              <td className="p-3 text-zinc-400">
-                                {service.description ? (
-                                  <span className="line-clamp-2">{service.description}</span>
-                                ) : (
-                                  <span className="text-zinc-500 italic">No description</span>
-                                )}
-                              </td>
-                              <td className="p-3 text-zinc-400">
-                                {service.payment_link ? (
-                                  <a 
-                                    href={service.payment_link} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="text-blue-400 hover:underline truncate max-w-xs block"
-                                  >
-                                    {service.payment_link}
-                                  </a>
-                                ) : (
-                                  <span className="text-zinc-500 italic">No payment link</span>
-                                )}
-                              </td>
-                              <td className="p-3 whitespace-nowrap">
-                                <div className="flex space-x-2">
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={() => handleStartEdit(service)}
-                                    className="bg-zinc-800 border-zinc-700"
-                                  >
-                                    <Pencil className="h-4 w-4 mr-1" />
-                                    Edit
-                                  </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline" 
-                                    onClick={() => handleDeleteService(service.id)}
-                                    className="bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border-transparent"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="organization">
-          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm hover:bg-zinc-900/70 transition-colors">
-            <CardHeader>
-              <CardTitle>Organization Settings</CardTitle>
-              <CardDescription className="text-zinc-400">
-                Manage your organization details and preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-zinc-400">Organization settings will be available soon.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="billing">
-          <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm hover:bg-zinc-900/70 transition-colors">
-            <CardHeader>
-              <CardTitle>Billing Settings</CardTitle>
-              <CardDescription className="text-zinc-400">
-                Manage your subscription and payment methods
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-zinc-400">Billing settings will be available soon.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
       
       {/* Add Service Modal */}
       {showAddModal && (
@@ -545,7 +520,7 @@ export default function SettingsPage() {
                   </Button>
                   <Button 
                     type="submit" 
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6"
+                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6"
                   >
                     <PlusCircle className="h-4 w-4 mr-2" />
                     Add Service
