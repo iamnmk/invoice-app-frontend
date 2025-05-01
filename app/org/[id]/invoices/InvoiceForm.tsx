@@ -14,6 +14,16 @@ interface Service {
   payment_link: string | null;
 }
 
+interface Signature {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  signature_image: string;
+  signature_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface InvoiceFormProps {
   organizationId: string;
   invoiceId?: string | null;
@@ -28,6 +38,10 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(false);
   
+  // Add state for signatures
+  const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [loadingSignatures, setLoadingSignatures] = useState(false);
+  
   const [formData, setFormData] = useState({
     client_name: '',
     client_email: '',
@@ -37,12 +51,14 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
     notes: '',
     status: 'Draft',
     service_id: '',
-    include_payment_button: false
+    include_payment_button: false,
+    signature_id: '' // Add field for selected signature
   });
   
-  // Fetch services on component mount
+  // Fetch services and signatures on component mount
   useEffect(() => {
     fetchServices();
+    fetchSignatures();
   }, [organizationId]);
   
   // Fetch invoice data if editing an existing invoice
@@ -82,6 +98,45 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
     }
   };
   
+  const fetchSignatures = async () => {
+    setLoadingSignatures(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      // Get current user info from localStorage
+      const userString = localStorage.getItem('user');
+      if (!userString) {
+        setError('User information not found');
+        return;
+      }
+      
+      const user = JSON.parse(userString);
+      
+      const response = await fetch(`/api/signatures?user_id=${user.id}&organization_id=${organizationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setSignatures(data);
+      
+    } catch (err) {
+      console.error('Error fetching signatures:', err);
+      // Don't show error to user for signatures, just log it
+    } finally {
+      setLoadingSignatures(false);
+    }
+  };
+  
   const fetchInvoiceData = async () => {
     if (!invoiceId) return;
     
@@ -118,7 +173,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         notes: invoice.notes || '',
         status: invoice.status,
         service_id: invoice.service_id || '',
-        include_payment_button: invoice.include_payment_button || false
+        include_payment_button: invoice.include_payment_button || false,
+        signature_id: invoice.signature_id || '' // Include signature_id
       });
     } catch (err) {
       console.error('Error fetching invoice:', err);
@@ -167,7 +223,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         currency: formData.currency,
         notes: formData.notes,
         service_id: formData.service_id || null,
-        include_payment_button: formData.include_payment_button
+        include_payment_button: formData.include_payment_button,
+        signature_id: formData.signature_id || null // Add signature_id to the data
       };
       
       let response;
@@ -410,16 +467,60 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         </div>
         
         <div className="flex items-center mt-4">
-          <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${hasPaymentLink ? 'bg-zinc-700 cursor-pointer' : 'bg-zinc-800 opacity-50 cursor-not-allowed'}`}
+          <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${hasPaymentLink ? 
+            (formData.include_payment_button ? 'bg-green-500 cursor-pointer' : 'bg-zinc-700 cursor-pointer') : 
+            'bg-zinc-800 opacity-50 cursor-not-allowed'}`}
                onClick={handlePaymentButtonToggle}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.include_payment_button && hasPaymentLink ? 'translate-x-6' : 'translate-x-1'}`} />
           </div>
           <label className="ml-2 text-sm font-medium text-zinc-400">
-            Include "Pay Now" button in PDF
+            Include Payment Button
             {!hasPaymentLink && (
-              <span className="ml-2 text-xs text-zinc-500">(Requires a service with payment link)</span>
+              <span className="ml-1 text-zinc-500 text-xs">(Requires a service with payment link)</span>
             )}
           </label>
+        </div>
+        
+        <div className="mt-6">
+          <label htmlFor="signature_id" className="block text-sm font-medium text-zinc-400 mb-1">
+            Digital Signature (Optional)
+          </label>
+          <select
+            id="signature_id"
+            name="signature_id"
+            value={formData.signature_id}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-white"
+          >
+            <option value="">-- No signature --</option>
+            {loadingSignatures ? (
+              <option disabled>Loading signatures...</option>
+            ) : signatures.length > 0 ? (
+              signatures.map(signature => (
+                <option key={signature.id} value={signature.id}>
+                  {signature.signature_name}
+                </option>
+              ))
+            ) : (
+              <option disabled>No signatures available</option>
+            )}
+          </select>
+          {signatures.length === 0 && !loadingSignatures && (
+            <p className="text-xs text-zinc-500 mt-1">
+              Create signatures in the Settings page to use them on invoices
+            </p>
+          )}
+          {formData.signature_id && (
+            <div className="mt-2 bg-zinc-800 rounded-md p-2 border border-zinc-700">
+              <div className="bg-white p-2 rounded flex items-center justify-center">
+                <img 
+                  src={signatures.find(s => s.id === formData.signature_id)?.signature_image || ''} 
+                  alt="Selected signature"
+                  className="max-h-10 max-w-full object-contain" 
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
       

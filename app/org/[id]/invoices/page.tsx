@@ -168,6 +168,7 @@ interface Invoice {
   service_name?: string;
   include_payment_button?: boolean;
   payment_link?: string;
+  signature_id?: string;
 }
 
 // Add a custom button styles for a consistent look and feel
@@ -401,182 +402,214 @@ export default function InvoicesPage() {
   };
   
   const handleDownloadInvoice = async (invoice: Invoice) => {
-    let orgName = "Unnamed Organization";
-    
-    // First try to use the organization name from state
-    if (organization && organization.name) {
-      orgName = organization.name;
-      console.log("Using cached organization name:", orgName);
-    } else {
-      // If not available, fetch it directly
+    try {
+      // Fetch the most up-to-date invoice data
+      let currentInvoice = invoice;
       try {
-        console.log("Fetching fresh organization data for PDF");
         const token = localStorage.getItem('token');
-        if (!token) throw new Error('Authentication required');
-        
-        const response = await fetch(`/api/organizations/${organizationId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
+        if (token) {
+          const response = await fetch(`/api/invoices/${invoice.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const fetchedInvoice = await response.json();
+            currentInvoice = fetchedInvoice;
+            console.log("Using fresh invoice data for PDF:", currentInvoice);
           }
-        });
-        
-        if (!response.ok) throw new Error(`Failed to fetch organization: ${response.status}`);
-        
-        const data = await response.json();
-        if (data && data.name) {
-          orgName = data.name;
-          console.log("Fresh organization name fetched:", orgName);
-          // Update state for future use
-          setOrganization(data);
         }
       } catch (err) {
-        console.error('Error fetching fresh organization data:', err);
+        console.error('Error fetching fresh invoice data:', err);
+        // Continue with existing invoice data
       }
-    }
-    
-    // Fetch the most up-to-date invoice data
-    let currentInvoice = invoice;
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const response = await fetch(`/api/invoices/${invoice.id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
+      
+      // Fetch the signature data if a signature is selected
+      let signatureImage = null;
+      if (currentInvoice.signature_id) {
+        console.log("Signature ID found, fetching signature:", currentInvoice.signature_id);
+        try {
+          const token = localStorage.getItem('token');
+          if (token) {
+            // Ensure we're using a relative path URL that will be handled by the frontend API
+            const signatureEndpoint = `/api/signatures/${currentInvoice.signature_id}`;
+            console.log("Fetching signature from:", signatureEndpoint);
+            
+            const response = await fetch(signatureEndpoint, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const signatureData = await response.json();
+              console.log("Fetched signature data:", signatureData.signature_name);
+              signatureImage = signatureData.signature_image;
+            } else {
+              console.error("Failed to fetch signature, status:", response.status);
+              const errorText = await response.text().catch(() => "No error details");
+              console.error("Error details:", errorText);
+            }
           }
-        });
-        
-        if (response.ok) {
-          const fetchedInvoice = await response.json();
-          currentInvoice = fetchedInvoice;
-          console.log("Using fresh invoice data for PDF:", currentInvoice);
+        } catch (err) {
+          console.error('Error fetching signature data:', err);
         }
+      } else {
+        console.log("No signature_id found on invoice");
       }
-    } catch (err) {
-      console.error('Error fetching fresh invoice data:', err);
-      // Continue with existing invoice data
-    }
-    
-    // Create a new jsPDF instance
-    const doc = new jsPDF();
-    
-    // Add header
-    doc.setFontSize(20);
-    doc.setTextColor(255, 140, 0); // Orange color
-    doc.text('INVOICE', 105, 20, { align: 'center' });
-    
-    // Use the organization name, with appropriate fallback
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(orgName, 14, 30);
-    
-    // Add invoice details
-    doc.setFontSize(10);
-    doc.text(`Invoice Number: ${currentInvoice.invoice_number}`, 140, 30);
-    doc.text(`Date: ${formatDate(currentInvoice.created_at)}`, 140, 35);
-    doc.text(`Due Date: ${formatDate(currentInvoice.due_date)}`, 140, 40);
-    doc.text(`Status: ${currentInvoice.status}`, 140, 45);
-    
-    // Add client info
-    doc.setFontSize(12);
-    doc.text('Bill To:', 14, 65);
-    doc.setFontSize(10);
-    doc.text(currentInvoice.client_name, 14, 70);
-    doc.text(currentInvoice.client_email, 14, 75);
-    
-    // Add service info if available
-    const serviceName = getServiceName(currentInvoice.service_id);
-    const service = services.find(s => s.id === currentInvoice.service_id);
-    if (serviceName) {
+      
+      // Create a new jsPDF instance
+      const doc = new jsPDF();
+      
+      // Add header
+      doc.setFontSize(20);
+      doc.setTextColor(255, 140, 0); // Orange color
+      doc.text('INVOICE', 105, 20, { align: 'center' });
+      
+      // Use the organization name, with appropriate fallback
       doc.setFontSize(12);
-      doc.text('Service:', 14, 85);
-      doc.setFontSize(10);
-      doc.text(serviceName, 14, 90);
-      // Adjust table position
-      var tableY = 100;
-    } else {
-      var tableY = 85;
-    }
-    
-    // Add invoice items table
-    const itemTableData = [
-      ['Description', 'Quantity', 'Unit Price', 'Amount'],
-      [(serviceName || 'Professional Services'), '1', formatCurrency(currentInvoice.amount_total, currentInvoice.currency).replace(currentInvoice.currency, ''), formatCurrency(currentInvoice.amount_total, currentInvoice.currency)]
-    ];
-    
-    autoTable(doc, {
-      startY: tableY,
-      head: [itemTableData[0]],
-      body: [itemTableData[1]],
-      theme: 'grid',
-      headStyles: { fillColor: [255, 140, 0], textColor: [255, 255, 255] },
-      styles: { lineColor: [200, 200, 200] }
-    });
-    
-    // Get the y position where the table ended
-    const finalY = (doc as any).lastAutoTable.finalY || 85 + 20;
-    
-    // Add total amount
-    doc.setFontSize(10);
-    doc.text('Subtotal:', 140, finalY + 10);
-    doc.text('Tax:', 140, finalY + 15);
-    doc.text('Total:', 140, finalY + 25);
-    
-    doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 10, { align: 'right' });
-    doc.text(formatCurrency(0, currentInvoice.currency), 175, finalY + 15, { align: 'right' });
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 25, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    
-    // Add notes
-    if (currentInvoice.notes) {
-      doc.text('Notes:', 14, finalY + 40);
-      doc.text(currentInvoice.notes, 14, finalY + 45);
-    }
-    
-    // Check if we should add a payment button
-    console.log("Invoice include_payment_button:", currentInvoice.include_payment_button);
-    console.log("Service payment link:", service?.payment_link);
-    
-    if (service?.payment_link) {
-      const paymentY = currentInvoice.notes ? finalY + 60 : finalY + 40;
-      
-      // Add payment section
-      doc.setFontSize(12);
-      doc.text('Payment Options:', 14, paymentY);
-      
-      // Draw a button rectangle
-      doc.setFillColor(255, 140, 0);
-      doc.setDrawColor(255, 140, 0);
-      doc.roundedRect(14, paymentY + 5, 80, 20, 3, 3, 'F');
-      
-      // Add button text
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text('PAY NOW ONLINE', 54, paymentY + 17, { align: 'center' });
-      
-      // Add link annotation to make the button clickable
-      doc.link(14, paymentY + 5, 80, 20, { url: service.payment_link });
-      
-      // Reset text color
       doc.setTextColor(0, 0, 0);
+      doc.text(organization?.name || "Unnamed Organization", 14, 30);
+      
+      // Add invoice details
+      doc.setFontSize(10);
+      doc.text(`Invoice Number: ${currentInvoice.invoice_number}`, 140, 30);
+      doc.text(`Date: ${formatDate(currentInvoice.created_at)}`, 140, 35);
+      doc.text(`Due Date: ${formatDate(currentInvoice.due_date)}`, 140, 40);
+      doc.text(`Status: ${currentInvoice.status}`, 140, 45);
+      
+      // Add client info
+      doc.setFontSize(12);
+      doc.text('Bill To:', 14, 65);
+      doc.setFontSize(10);
+      doc.text(currentInvoice.client_name, 14, 70);
+      doc.text(currentInvoice.client_email, 14, 75);
+      
+      // Add service info if available
+      const serviceName = getServiceName(currentInvoice.service_id);
+      const service = services.find(s => s.id === currentInvoice.service_id);
+      if (serviceName) {
+        doc.setFontSize(12);
+        doc.text('Service:', 14, 85);
+        doc.setFontSize(10);
+        doc.text(serviceName, 14, 90);
+        // Adjust table position
+        var tableY = 100;
+      } else {
+        var tableY = 85;
+      }
+      
+      // Add invoice items table
+      const itemTableData = [
+        ['Description', 'Quantity', 'Unit Price', 'Amount'],
+        [(serviceName || 'Professional Services'), '1', formatCurrency(currentInvoice.amount_total, currentInvoice.currency).replace(currentInvoice.currency, ''), formatCurrency(currentInvoice.amount_total, currentInvoice.currency)]
+      ];
+      
+      autoTable(doc, {
+        startY: tableY,
+        head: [itemTableData[0]],
+        body: [itemTableData[1]],
+        theme: 'grid',
+        headStyles: { fillColor: [255, 140, 0], textColor: [255, 255, 255] },
+        styles: { lineColor: [200, 200, 200] }
+      });
+      
+      // Get the y position where the table ended
+      const finalY = (doc as any).lastAutoTable.finalY || 85 + 20;
+      
+      // Add total amount
+      doc.setFontSize(10);
+      doc.text('Subtotal:', 140, finalY + 10);
+      doc.text('Tax:', 140, finalY + 15);
+      doc.text('Total:', 140, finalY + 25);
+      
+      doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 10, { align: 'right' });
+      doc.text(formatCurrency(0, currentInvoice.currency), 175, finalY + 15, { align: 'right' });
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 25, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       
-      // Add payment instructions
-      doc.setFontSize(9);
-      doc.text('Click the button above to pay online or use the link below:', 14, paymentY + 32);
-      doc.setTextColor(0, 102, 204);
-      doc.text(service.payment_link, 14, paymentY + 38);
-      doc.link(14, paymentY + 34, service.payment_link.length * 2, 8, { url: service.payment_link });
+      // Add notes
+      if (currentInvoice.notes) {
+        doc.text('Notes:', 14, finalY + 40);
+        doc.text(currentInvoice.notes, 14, finalY + 45);
+      }
+      
+      // Determine the y position for payment button or signature
+      let nextSectionY = currentInvoice.notes ? finalY + 60 : finalY + 40;
+      
+      // Check if we should add a payment button
+      console.log("Invoice include_payment_button:", currentInvoice.include_payment_button);
+      console.log("Service payment link:", service?.payment_link);
+      
+      if (currentInvoice.include_payment_button && service?.payment_link) {
+        // Add payment section
+        doc.setFontSize(12);
+        doc.text('Payment Options:', 14, nextSectionY);
+        
+        // Draw a button rectangle
+        doc.setFillColor(255, 140, 0);
+        doc.setDrawColor(255, 140, 0);
+        doc.roundedRect(14, nextSectionY + 5, 80, 20, 3, 3, 'F');
+        
+        // Add button text
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text('PAY NOW ONLINE', 54, nextSectionY + 17, { align: 'center' });
+        
+        // Add link annotation to make the button clickable
+        doc.link(14, nextSectionY + 5, 80, 20, { url: service.payment_link });
+        
+        // Reset text color
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        
+        // Add payment instructions
+        doc.setFontSize(9);
+        doc.text('Click the button above to pay online or use the link below:', 14, nextSectionY + 32);
+        doc.setTextColor(0, 102, 204);
+        doc.text(service.payment_link, 14, nextSectionY + 38);
+        doc.link(14, nextSectionY + 34, service.payment_link.length * 2, 8, { url: service.payment_link });
+        
+        // Update the y position for the next section
+        nextSectionY += 45;
+      }
+      
+      // Add signature if available
+      if (signatureImage) {
+        console.log("Adding signature to PDF at y-position:", nextSectionY);
+        
+        // Add signature to the bottom right
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text('Authorized Signature:', 140, nextSectionY);
+        
+        // Add the signature image
+        try {
+          // First try the direct method
+          doc.addImage(signatureImage, 'PNG', 140, nextSectionY + 5, 50, 20);
+          console.log("Signature added successfully");
+        } catch (err) {
+          console.error('Error adding signature to PDF:', err);
+          console.error("Failed to add signature to PDF");
+        }
+      } else {
+        console.log("No signature image available for PDF");
+      }
+      
+      // Add footer
+      doc.setFontSize(8);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+      
+      // Save the PDF
+      doc.save(`Invoice-${currentInvoice.invoice_number}.pdf`);
+    } catch (err) {
+      console.error('Error downloading invoice:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
-    
-    // Add footer
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Thank you for your business!', 105, 280, { align: 'center' });
-    
-    // Save the PDF
-    doc.save(`Invoice-${currentInvoice.invoice_number}.pdf`);
   };
   
   const handleSendInvoiceEmail = async (invoice: Invoice) => {
@@ -605,6 +638,38 @@ export default function InvoicesPage() {
       } catch (err) {
         console.error('Error fetching fresh invoice data:', err);
         // Continue with existing invoice data
+      }
+      
+      // Fetch the signature data if a signature is selected
+      let signatureImage = null;
+      if (currentInvoice.signature_id) {
+        console.log("Signature ID found, fetching signature:", currentInvoice.signature_id);
+        try {
+          const token = localStorage.getItem('token');
+          if (token) {
+            // Ensure we're using a relative path URL that will be handled by the frontend API
+            const signatureEndpoint = `/api/signatures/${currentInvoice.signature_id}`;
+            console.log("Fetching signature from:", signatureEndpoint);
+            
+            const response = await fetch(signatureEndpoint, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const signatureData = await response.json();
+              console.log("Fetched signature data:", signatureData.signature_name);
+              signatureImage = signatureData.signature_image;
+            } else {
+              console.error("Failed to fetch signature, status:", response.status);
+              const errorText = await response.text().catch(() => "No error details");
+              console.error("Error details:", errorText);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching signature data:', err);
+        }
       }
       
       // First generate the PDF
@@ -686,27 +751,28 @@ export default function InvoicesPage() {
         doc.text(currentInvoice.notes, 14, finalY + 45);
       }
       
-      // Add payment button if service has payment link
+      // Determine the y position for payment button or signature
+      let nextSectionY = currentInvoice.notes ? finalY + 60 : finalY + 40;
+      
+      // Check if we should add a payment button
       console.log("Email service payment link:", service?.payment_link);
       if (service?.payment_link) {
-        const paymentY = currentInvoice.notes ? finalY + 60 : finalY + 40;
-        
         // Add payment section
         doc.setFontSize(12);
-        doc.text('Payment Options:', 14, paymentY);
+        doc.text('Payment Options:', 14, nextSectionY);
         
         // Draw a button rectangle
         doc.setFillColor(255, 140, 0);
         doc.setDrawColor(255, 140, 0);
-        doc.roundedRect(14, paymentY + 5, 80, 20, 3, 3, 'F');
+        doc.roundedRect(14, nextSectionY + 5, 80, 20, 3, 3, 'F');
         
         // Add button text
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(255, 255, 255);
-        doc.text('PAY NOW ONLINE', 54, paymentY + 17, { align: 'center' });
+        doc.text('PAY NOW ONLINE', 54, nextSectionY + 17, { align: 'center' });
         
         // Add link annotation to make the button clickable
-        doc.link(14, paymentY + 5, 80, 20, { url: service.payment_link });
+        doc.link(14, nextSectionY + 5, 80, 20, { url: service.payment_link });
         
         // Reset text color
         doc.setTextColor(0, 0, 0);
@@ -714,10 +780,35 @@ export default function InvoicesPage() {
         
         // Add payment instructions
         doc.setFontSize(9);
-        doc.text('Click the button above to pay online or use the link below:', 14, paymentY + 32);
+        doc.text('Click the button above to pay online or use the link below:', 14, nextSectionY + 32);
         doc.setTextColor(0, 102, 204);
-        doc.text(service.payment_link, 14, paymentY + 38);
-        doc.link(14, paymentY + 34, service.payment_link.length * 2, 8, { url: service.payment_link });
+        doc.text(service.payment_link, 14, nextSectionY + 38);
+        doc.link(14, nextSectionY + 34, service.payment_link.length * 2, 8, { url: service.payment_link });
+        
+        // Update the y position for the next section
+        nextSectionY += 45;
+      }
+      
+      // Add signature if available
+      if (signatureImage) {
+        console.log("Adding signature to PDF at y-position:", nextSectionY);
+        
+        // Add signature to the bottom right
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text('Authorized Signature:', 140, nextSectionY);
+        
+        // Add the signature image
+        try {
+          // First try the direct method
+          doc.addImage(signatureImage, 'PNG', 140, nextSectionY + 5, 50, 20);
+          console.log("Signature added successfully");
+        } catch (err) {
+          console.error('Error adding signature to PDF:', err);
+          console.error("Failed to add signature to PDF");
+        }
+      } else {
+        console.log("No signature image available for PDF");
       }
       
       // Add footer

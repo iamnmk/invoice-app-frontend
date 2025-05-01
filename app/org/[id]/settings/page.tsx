@@ -2,8 +2,9 @@
 
 import { useState, useEffect, ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, Check, X, AlertCircle } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Check, X, AlertCircle, Edit } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 
 // UI Components
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../../../components/ui/card";
@@ -13,6 +14,12 @@ import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Textarea } from "../../../../components/ui/textarea";
 
+// Import SignatureCanvas with dynamic loading to avoid SSR issues
+const SignatureCanvas = dynamic(
+  () => import('../../../../app/components/SignatureCanvas'),
+  { ssr: false }
+);
+
 interface Service {
   id: string;
   organization_id: string;
@@ -20,6 +27,16 @@ interface Service {
   description: string | null;
   payment_link: string | null;
   created_at: string;
+}
+
+interface Signature {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  signature_image: string;
+  signature_name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Portal component for rendering modals
@@ -56,10 +73,17 @@ export default function SettingsPage() {
     description: '',
     payment_link: ''
   });
+
+  // Signature state
+  const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [loadingSignatures, setLoadingSignatures] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [selectedSignature, setSelectedSignature] = useState<Signature | null>(null);
   
   // Fetch services on page load
   useEffect(() => {
     fetchServices();
+    fetchSignatures();
   }, [organizationId]);
   
   const fetchServices = async () => {
@@ -93,6 +117,147 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSignatures = async () => {
+    setLoadingSignatures(true);
+    setError(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        setLoadingSignatures(false);
+        return;
+      }
+      
+      // Get current user info from localStorage
+      const userString = localStorage.getItem('user');
+      if (!userString) {
+        setError('User information not found');
+        setLoadingSignatures(false);
+        return;
+      }
+      
+      const user = JSON.parse(userString);
+      
+      const response = await fetch(`/api/signatures?user_id=${user.id}&organization_id=${organizationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setSignatures(data);
+      
+    } catch (err) {
+      console.error('Error fetching signatures:', err);
+      // Don't show error to user for signatures, just log it
+    } finally {
+      setLoadingSignatures(false);
+    }
+  };
+  
+  const handleSaveSignature = async (signatureData: string) => {
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      // Get current user info from localStorage
+      const userString = localStorage.getItem('user');
+      if (!userString) {
+        setError('User information not found');
+        return;
+      }
+      
+      const user = JSON.parse(userString);
+      
+      // Get signature name from form
+      const nameInput = document.getElementById('signature-name') as HTMLInputElement;
+      const signatureName = nameInput ? nameInput.value : 'Default Signature';
+      
+      const response = await fetch('/api/signatures', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          organization_id: organizationId,
+          signature_image: signatureData,
+          signature_name: signatureName
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server returned status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Update signatures list
+      setSignatures([...signatures, data]);
+      setSuccess('Signature saved successfully');
+      setShowSignatureModal(false);
+      
+    } catch (err) {
+      console.error('Error saving signature:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    }
+  };
+  
+  const handleDeleteSignature = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this signature? This cannot be undone.')) {
+      return;
+    }
+    
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      const response = await fetch(`/api/signatures/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server returned status: ${response.status}`);
+      }
+      
+      // Remove signature from state
+      setSignatures(signatures.filter(sig => sig.id !== id));
+      setSuccess('Signature deleted successfully');
+      
+    } catch (err) {
+      console.error('Error deleting signature:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    }
+  };
+
+  const handleEditSignature = (signature: Signature) => {
+    setSelectedSignature(signature);
+    setShowSignatureModal(true);
   };
   
   const handleAddService = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -293,7 +458,7 @@ export default function SettingsPage() {
         </div>
       )}
       
-      {/* Services Section - Now outside tabs */}
+      {/* Services Section */}
       <div className="mb-8">
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm hover:bg-zinc-900/70 transition-colors">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -316,7 +481,7 @@ export default function SettingsPage() {
             {/* Services List */}
             {loading ? (
               <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
               </div>
             ) : services.length === 0 ? (
               <div className="text-center py-12">
@@ -449,6 +614,86 @@ export default function SettingsPage() {
         </Card>
       </div>
       
+      {/* E-Signatures Section */}
+      <div className="mb-8">
+        <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm hover:bg-zinc-900/70 transition-colors">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Digital Signatures</CardTitle>
+              <CardDescription className="text-zinc-400">
+                Create and manage your digital signatures for invoices
+              </CardDescription>
+            </div>
+            <Button 
+              onClick={() => {
+                setSelectedSignature(null);
+                setShowSignatureModal(true);
+              }}
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Signature
+            </Button>
+          </CardHeader>
+          
+          <CardContent>
+            {loadingSignatures ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
+              </div>
+            ) : signatures.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mx-auto bg-zinc-800/50 rounded-full h-16 w-16 flex items-center justify-center mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </div>
+                <p className="text-zinc-400 text-lg">No signatures available</p>
+                <p className="text-zinc-500 mt-2">Click the "Add Signature" button to create your first digital signature.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {signatures.map((signature) => (
+                  <div key={signature.id} className="bg-zinc-800/50 rounded-lg border border-zinc-700 overflow-hidden">
+                    <div className="p-4 bg-white flex items-center justify-center">
+                      <img 
+                        src={signature.signature_image} 
+                        alt={signature.signature_name} 
+                        className="max-h-24 max-w-full object-contain"
+                      />
+                    </div>
+                    <div className="p-3">
+                      <div className="text-sm text-zinc-200 font-medium mb-1">
+                        {signature.signature_name}
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <div className="text-xs text-zinc-400">
+                          Created: {new Date(signature.created_at).toLocaleDateString()}
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleEditSignature(signature)}
+                            className="p-1.5 bg-zinc-700 rounded-full text-zinc-300 hover:bg-zinc-600 hover:text-white transition-colors"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSignature(signature.id)}
+                            className="p-1.5 bg-rose-500/20 text-rose-400 rounded-full hover:bg-rose-500/30 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
       {/* Add Service Modal */}
       {showAddModal && (
         <Portal>
@@ -527,6 +772,54 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </form>
+            </div>
+          </div>
+        </Portal>
+      )}
+      
+      {/* Signature Modal */}
+      {showSignatureModal && (
+        <Portal>
+          <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-zinc-800 animate-in fade-in slide-in-from-bottom-5 duration-300">
+              <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white">
+                  {selectedSignature ? 'Edit Signature' : 'Create New Signature'}
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowSignatureModal(false)}
+                  className="h-8 w-8 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <div className="p-6">
+                <div className="grid gap-2 mb-4">
+                  <Label htmlFor="signature-name" className="text-zinc-300">Signature Name</Label>
+                  <Input 
+                    id="signature-name"
+                    defaultValue={selectedSignature?.signature_name || ""}
+                    placeholder="e.g. My Signature"
+                    className="bg-zinc-800 border-zinc-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    required
+                  />
+                  <p className="text-xs text-zinc-500">
+                    Name your signature so you can identify it when selecting for invoices
+                  </p>
+                </div>
+                
+                <p className="text-zinc-400 mb-4">
+                  Draw your signature below. Use your mouse or touch screen to sign.
+                </p>
+                
+                <SignatureCanvas 
+                  onSave={handleSaveSignature}
+                  initialData={selectedSignature?.signature_image}
+                />
+              </div>
             </div>
           </div>
         </Portal>
