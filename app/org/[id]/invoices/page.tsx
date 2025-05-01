@@ -294,7 +294,17 @@ export default function InvoicesPage() {
   };
   
   const handleInvoiceCreated = (newInvoice: Invoice) => {
-    setInvoices([newInvoice, ...invoices]);
+    // Check if this is an update to an existing invoice or a new invoice
+    if (editInvoiceId) {
+      // Update existing invoice
+      setInvoices(invoices.map(invoice => 
+        invoice.id === editInvoiceId ? newInvoice : invoice
+      ));
+    } else {
+      // Add new invoice to the beginning of the list
+      setInvoices([newInvoice, ...invoices]);
+    }
+    
     setShowInvoiceForm(false);
     setEditInvoiceId(null);
   };
