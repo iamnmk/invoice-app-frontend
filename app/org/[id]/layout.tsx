@@ -200,20 +200,18 @@ export default function OrganizationLayout({ children }: LayoutProps) {
                 Invoices
               </Link>
             </li>
-            {user?.role === 'Admin' && (
-              <li>
-                <Link
-                  href={`/org/${orgId}/users`}
-                  className={`flex items-center p-3 rounded-lg font-medium transition-all duration-200 
-                  ${isActiveRoute('/users') 
-                    ? 'bg-gradient-to-r from-purple-100 to-blue-50 text-purple-600 pl-4 shadow-sm' 
-                    : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 hover:text-purple-600 hover:pl-4 hover:shadow-sm'}`}
-                >
-                  <Users className="w-5 h-5 mr-3" />
-                  Manage Users
-                </Link>
-              </li>
-            )}
+            <li>
+              <Link
+                href={`/org/${orgId}/users`}
+                className={`flex items-center p-3 rounded-lg font-medium transition-all duration-200 
+                ${isActiveRoute('/users') 
+                  ? 'bg-gradient-to-r from-purple-100 to-blue-50 text-purple-600 pl-4 shadow-sm' 
+                  : 'hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 hover:text-purple-600 hover:pl-4 hover:shadow-sm'}`}
+              >
+                <Users className="w-5 h-5 mr-3" />
+                Users
+              </Link>
+            </li>
             <li>
               <Link
                 href={`/org/${orgId}/settings`}

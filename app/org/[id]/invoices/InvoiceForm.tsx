@@ -7,6 +7,13 @@ const buttonBaseStyles = "relative inline-flex items-center justify-center round
 const primaryButtonStyles = `${buttonBaseStyles} bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-md hover:shadow-lg hover:shadow-purple-500/20`;
 const outlineButtonStyles = `${buttonBaseStyles} bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-600 text-white`;
 
+interface Service {
+  id: string;
+  name: string;
+  description: string | null;
+  payment_link: string | null;
+}
+
 interface InvoiceFormProps {
   organizationId: string;
   invoiceId?: string | null;
@@ -18,6 +25,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isEdit, setIsEdit] = useState(false);
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
   
   const [formData, setFormData] = useState({
     client_name: '',
@@ -26,8 +35,14 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
     due_date: '',
     currency: 'USD',
     notes: '',
-    status: 'Draft'
+    status: 'Draft',
+    service_id: ''
   });
+  
+  // Fetch services on component mount
+  useEffect(() => {
+    fetchServices();
+  }, [organizationId]);
   
   // Fetch invoice data if editing an existing invoice
   useEffect(() => {
@@ -36,6 +51,35 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
       fetchInvoiceData();
     }
   }, [invoiceId]);
+  
+  const fetchServices = async () => {
+    setLoadingServices(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+      
+      const response = await fetch(`/api/services/organization/${organizationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server returned status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setServices(data);
+    } catch (err) {
+      console.error('Error fetching services:', err);
+      // Don't show error to user, just log it
+    } finally {
+      setLoadingServices(false);
+    }
+  };
   
   const fetchInvoiceData = async () => {
     if (!invoiceId) return;
@@ -71,7 +115,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         due_date: formattedDueDate,
         currency: invoice.currency || 'USD',
         notes: invoice.notes || '',
-        status: invoice.status
+        status: invoice.status,
+        service_id: invoice.service_id || ''
       });
     } catch (err) {
       console.error('Error fetching invoice:', err);
@@ -118,7 +163,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         amount_total: parseFloat(formData.amount_total),
         due_date: formData.due_date,
         currency: formData.currency,
-        notes: formData.notes
+        notes: formData.notes,
+        service_id: formData.service_id || null  // Include service_id or null if not selected
       };
       
       let response;
@@ -170,6 +216,9 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
       setLoading(false);
     }
   };
+  
+  // Find the selected service name if service_id is set
+  const selectedService = services.find(service => service.id === formData.service_id);
 
   return (
     <form onSubmit={handleSubmit} className="text-white">
@@ -218,6 +267,32 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         <div className="bg-zinc-900/50 border border-zinc-800 backdrop-blur-sm rounded-lg p-5">
           <h3 className="text-lg font-medium mb-4 text-white">Invoice Details</h3>
           <div className="space-y-4">
+            <div>
+              <label htmlFor="service_id" className="block text-sm font-medium text-zinc-400 mb-1">
+                Service
+              </label>
+              <select
+                id="service_id"
+                name="service_id"
+                value={formData.service_id}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+              >
+                <option value="">-- Select a service --</option>
+                {loadingServices ? (
+                  <option disabled>Loading services...</option>
+                ) : services.length > 0 ? (
+                  services.map(service => (
+                    <option key={service.id} value={service.id}>
+                      {service.name}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No services available</option>
+                )}
+              </select>
+            </div>
+            
             <div>
               <label htmlFor="amount_total" className="block text-sm font-medium text-zinc-400 mb-1">
                 Amount *
@@ -328,6 +403,7 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
             <div className="font-medium text-white">Total Amount</div>
             <div className="text-sm text-zinc-400">
               {formData.client_name ? `For ${formData.client_name}` : 'Enter client name above'}
+              {selectedService && ` • ${selectedService.name}`}
             </div>
           </div>
           <div className="text-xl font-bold text-white">

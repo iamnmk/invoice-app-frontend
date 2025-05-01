@@ -1,35 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Create a new service
-export async function POST(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  context: { params: { orgId: string } }
+) {
   try {
+    const orgId = context.params.orgId;
     const authHeader = request.headers.get('authorization');
     
     // Use a custom auth token for development
     const devAuthToken = process.env.NODE_ENV === 'development' ? 'Bearer dev-token' : null;
     
-    // Get the request body
-    const body = await request.json();
-    
-    // Validate required fields
-    if (!body.organization_id || !body.name) {
-      return NextResponse.json(
-        { error: 'Organization ID and service name are required' },
-        { status: 400 }
-      );
-    }
-    
     // Forward the request to the backend
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
     
     try {
-      const response = await fetch(`${backendUrl}/api/services`, {
-        method: 'POST',
+      const response = await fetch(`${backendUrl}/api/services/organization/${orgId}`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': authHeader || devAuthToken || ''
-        },
-        body: JSON.stringify(body)
+        }
       });
       
       if (!response.ok) {
@@ -41,30 +32,40 @@ export async function POST(request: NextRequest) {
       }
       
       const data = await response.json();
-      return NextResponse.json(data, { status: 201 });
+      return NextResponse.json(data);
     } catch (backendError) {
       console.error('Error connecting to backend:', backendError);
       
       // In development mode, return mock data
       if (process.env.NODE_ENV === 'development') {
-        console.log('Using mock service creation in development mode');
+        console.log('Using mock service data in development mode');
         
-        return NextResponse.json({
-          id: 'mock-service-' + Date.now(),
-          organization_id: body.organization_id,
-          name: body.name,
-          description: body.description || null,
-          payment_link: body.payment_link || null,
-          created_at: new Date().toISOString()
-        }, { status: 201 });
+        return NextResponse.json([
+          {
+            id: 'mock-service-1',
+            organization_id: orgId,
+            name: 'Web Development',
+            description: 'Full-stack web application development services',
+            payment_link: 'https://example.com/pay/web-dev',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-service-2',
+            organization_id: orgId,
+            name: 'UI/UX Design',
+            description: 'User interface and experience design services',
+            payment_link: null,
+            created_at: new Date().toISOString()
+          }
+        ]);
       }
       
       throw backendError;
     }
   } catch (error) {
-    console.error('Error in service POST API route:', error);
+    console.error('Error in services organization API route:', error);
     return NextResponse.json(
-      { error: 'Failed to create service' },
+      { error: 'Failed to fetch organization services' },
       { status: 500 }
     );
   }

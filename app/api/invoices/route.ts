@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
           invoice_number: body.invoice_number || `INV-${Date.now().toString().slice(-6)}`,
           client_name: body.client_name,
           client_email: body.client_email,
+          service_id: body.service_id || null,
           amount_total: parseFloat(body.amount_total),
           currency: body.currency || 'USD',
           due_date: body.due_date,

@@ -165,6 +165,7 @@ interface Invoice {
   created_at: string;
   service_id?: string;
   notes?: string;
+  service_name?: string;
 }
 
 // Add a custom button styles for a consistent look and feel
@@ -189,10 +190,12 @@ export default function InvoicesPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [services, setServices] = useState<{id: string, name: string}[]>([]);
   
   useEffect(() => {
     fetchInvoices();
     fetchOrganizationData();
+    fetchServices();
   }, [organizationId]);
   
   const fetchInvoices = async () => {
@@ -259,6 +262,31 @@ export default function InvoicesPage() {
       setOrganization(data);
     } catch (err) {
       console.error('Error fetching organization data:', err);
+    }
+  };
+  
+  const fetchServices = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('Token not found for services fetch');
+        return;
+      }
+      
+      const response = await fetch(`/api/services/organization/${organizationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Services fetch failed with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setServices(data);
+    } catch (err) {
+      console.error('Error fetching services:', err);
     }
   };
   
@@ -363,6 +391,13 @@ export default function InvoicesPage() {
   const pendingAmount = invoices.filter(inv => ['Sent', 'Pending'].includes(inv.status)).reduce((sum, inv) => sum + inv.amount_total, 0);
   const overdueAmount = invoices.filter(inv => inv.status === 'Overdue').reduce((sum, inv) => sum + inv.amount_total, 0);
   
+  // Helper function to get service name by ID
+  const getServiceName = (serviceId: string | undefined) => {
+    if (!serviceId) return '';
+    const service = services.find(s => s.id === serviceId);
+    return service ? service.name : '';
+  };
+  
   const handleDownloadInvoice = async (invoice: Invoice) => {
     let orgName = "Unnamed Organization";
     
@@ -425,14 +460,27 @@ export default function InvoicesPage() {
     doc.text(invoice.client_name, 14, 70);
     doc.text(invoice.client_email, 14, 75);
     
+    // Add service info if available
+    const serviceName = getServiceName(invoice.service_id);
+    if (serviceName) {
+      doc.setFontSize(12);
+      doc.text('Service:', 14, 85);
+      doc.setFontSize(10);
+      doc.text(serviceName, 14, 90);
+      // Adjust table position
+      var tableY = 100;
+    } else {
+      var tableY = 85;
+    }
+    
     // Add invoice items table
     const itemTableData = [
       ['Description', 'Quantity', 'Unit Price', 'Amount'],
-      ['Professional Services', '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
+      [(serviceName || 'Professional Services'), '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
     ];
     
     autoTable(doc, {
-      startY: 85,
+      startY: tableY,
       head: [itemTableData[0]],
       body: [itemTableData[1]],
       theme: 'grid',
@@ -504,14 +552,27 @@ export default function InvoicesPage() {
       doc.text(invoice.client_name, 14, 70);
       doc.text(invoice.client_email, 14, 75);
       
+      // Add service info if available
+      const serviceName = getServiceName(invoice.service_id);
+      if (serviceName) {
+        doc.setFontSize(12);
+        doc.text('Service:', 14, 85);
+        doc.setFontSize(10);
+        doc.text(serviceName, 14, 90);
+        // Adjust table position
+        var tableY = 100;
+      } else {
+        var tableY = 85;
+      }
+      
       // Add invoice items table
       const itemTableData = [
         ['Description', 'Quantity', 'Unit Price', 'Amount'],
-        ['Professional Services', '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
+        [(serviceName || 'Professional Services'), '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
       ];
       
       autoTable(doc, {
-        startY: 85,
+        startY: tableY,
         head: [itemTableData[0]],
         body: [itemTableData[1]],
         theme: 'grid',
@@ -745,6 +806,7 @@ export default function InvoicesPage() {
                   <tr className="bg-zinc-800/50">
                     <th className="text-left p-3 text-xs font-medium text-zinc-400">INVOICE</th>
                     <th className="text-left p-3 text-xs font-medium text-zinc-400">CLIENT</th>
+                    <th className="text-left p-3 text-xs font-medium text-zinc-400">SERVICE</th>
                     <th className="text-left p-3 text-xs font-medium text-zinc-400">AMOUNT</th>
                     <th className="text-left p-3 text-xs font-medium text-zinc-400">DATE</th>
                     <th className="text-left p-3 text-xs font-medium text-zinc-400">STATUS</th>
@@ -756,6 +818,7 @@ export default function InvoicesPage() {
                     <tr key={invoice.id} className="hover:bg-zinc-800/30">
                       <td className="p-3 text-white font-medium text-purple-400">{invoice.invoice_number}</td>
                       <td className="p-3 text-white">{invoice.client_name}</td>
+                      <td className="p-3 text-zinc-300">{getServiceName(invoice.service_id)}</td>
                       <td className="p-3 text-white">{formatCurrency(invoice.amount_total, invoice.currency)}</td>
                       <td className="p-3 text-zinc-400">{formatDate(invoice.due_date)}</td>
                       <td className="p-3">

@@ -1,158 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Get a single invoice by ID
+// Get a service by ID
 export async function GET(
-  request: NextRequest, 
+  request: NextRequest,
   context: { params: { id: string } }
 ) {
   try {
-    const invoiceId = context.params.id;
+    const serviceId = context.params.id;
     const authHeader = request.headers.get('authorization');
     
     // Use a custom auth token for development
     const devAuthToken = process.env.NODE_ENV === 'development' ? 'Bearer dev-token' : null;
-    
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-    
-    try {
-      const response = await fetch(`${backendUrl}/api/invoices/${invoiceId}`, {
-        headers: {
-          'Authorization': authHeader || devAuthToken || ''
-        }
-      });
-      
-      if (!response.ok) {
-        return NextResponse.json(
-          { error: `Backend returned status: ${response.status}` },
-          { status: response.status }
-        );
-      }
-      
-      const data = await response.json();
-      return NextResponse.json(data);
-    } catch (backendError) {
-      console.error('Error connecting to backend:', backendError);
-      
-      // In development mode, return a mock response
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Using mock invoice data in development mode');
-        
-        return NextResponse.json({
-          id: invoiceId,
-          organization_id: 'org-123',
-          invoice_number: `INV-123456`,
-          client_name: 'Mock Client',
-          client_email: 'client@example.com',
-          service_id: null,
-          amount_total: 199.99,
-          currency: 'USD',
-          due_date: new Date().toISOString(),
-          status: 'Pending',
-          notes: 'Mock invoice notes',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-      }
-      
-      throw backendError;
-    }
-  } catch (error) {
-    console.error('Error in invoice GET API route:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch invoice' },
-      { status: 500 }
-    );
-  }
-}
-
-// Update an invoice
-export async function PUT(
-  request: NextRequest, 
-  context: { params: { id: string } }
-) {
-  try {
-    const invoiceId = context.params.id;
-    const authHeader = request.headers.get('authorization');
-    
-    // Use a custom auth token for development
-    const devAuthToken = process.env.NODE_ENV === 'development' ? 'Bearer dev-token' : null;
-    
-    // Get the request body
-    const body = await request.json();
-    
-    // Validate required fields
-    if (!body.client_name || !body.client_email || 
-        body.amount_total === undefined || body.amount_total === null) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
     
     // Forward the request to the backend
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
     
     try {
-      const response = await fetch(`${backendUrl}/api/invoices/${invoiceId}`, {
-        method: 'PUT',
+      const response = await fetch(`${backendUrl}/api/services/${serviceId}`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader || devAuthToken || ''
-        },
-        body: JSON.stringify(body)
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        return NextResponse.json(data, { status: response.status });
-      }
-      
-      return NextResponse.json(data);
-    } catch (backendError) {
-      console.error('Error connecting to backend:', backendError);
-      
-      // In development mode, return a mock response
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Using mock invoice update in development mode');
-        
-        return NextResponse.json({
-          id: invoiceId,
-          ...body,
-          updated_at: new Date().toISOString()
-        });
-      }
-      
-      throw backendError;
-    }
-  } catch (error) {
-    console.error('Error in invoice PUT API route:', error);
-    return NextResponse.json(
-      { error: 'Failed to update invoice' },
-      { status: 500 }
-    );
-  }
-}
-
-// Delete an invoice
-export async function DELETE(
-  request: NextRequest, 
-  context: { params: { id: string } }
-) {
-  try {
-    const invoiceId = context.params.id;
-    const authHeader = request.headers.get('authorization');
-    
-    // Use a custom auth token for development
-    const devAuthToken = process.env.NODE_ENV === 'development' ? 'Bearer dev-token' : null;
-    
-    // Forward the request to the backend
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
-    
-    try {
-      const response = await fetch(`${backendUrl}/api/invoices/${invoiceId}`, {
-        method: 'DELETE',
-        headers: {
           'Authorization': authHeader || devAuthToken || ''
         }
       });
@@ -165,22 +32,155 @@ export async function DELETE(
         );
       }
       
-      return NextResponse.json({ success: true });
+      const data = await response.json();
+      return NextResponse.json(data);
     } catch (backendError) {
       console.error('Error connecting to backend:', backendError);
       
-      // In development mode, return a success response
+      // In development mode, return mock data
       if (process.env.NODE_ENV === 'development') {
-        console.log('Using mock invoice deletion in development mode');
-        return NextResponse.json({ success: true });
+        console.log('Using mock service data in development mode');
+        
+        return NextResponse.json({
+          id: serviceId,
+          organization_id: 'mock-org-id',
+          name: 'Mock Service',
+          description: 'This is a mock service for development',
+          payment_link: 'https://example.com/pay/mock',
+          created_at: new Date().toISOString()
+        });
       }
       
       throw backendError;
     }
   } catch (error) {
-    console.error('Error in invoice DELETE API route:', error);
+    console.error('Error in service GET API route:', error);
     return NextResponse.json(
-      { error: 'Failed to delete invoice' },
+      { error: 'Failed to fetch service' },
+      { status: 500 }
+    );
+  }
+}
+
+// Update a service
+export async function PUT(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
+  try {
+    const serviceId = context.params.id;
+    const authHeader = request.headers.get('authorization');
+    
+    // Use a custom auth token for development
+    const devAuthToken = process.env.NODE_ENV === 'development' ? 'Bearer dev-token' : null;
+    
+    // Get the request body
+    const body = await request.json();
+    
+    // Forward the request to the backend
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    
+    try {
+      const response = await fetch(`${backendUrl}/api/services/${serviceId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader || devAuthToken || ''
+        },
+        body: JSON.stringify(body)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return NextResponse.json(
+          errorData.error ? errorData : { error: `Backend returned status: ${response.status}` },
+          { status: response.status }
+        );
+      }
+      
+      const data = await response.json();
+      return NextResponse.json(data);
+    } catch (backendError) {
+      console.error('Error connecting to backend:', backendError);
+      
+      // In development mode, return mock data
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using mock service update in development mode');
+        
+        return NextResponse.json({
+          id: serviceId,
+          organization_id: 'mock-org-id',
+          name: body.name || 'Mock Service',
+          description: body.description || 'This is a mock service for development',
+          payment_link: body.payment_link || 'https://example.com/pay/mock',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      }
+      
+      throw backendError;
+    }
+  } catch (error) {
+    console.error('Error in service PUT API route:', error);
+    return NextResponse.json(
+      { error: 'Failed to update service' },
+      { status: 500 }
+    );
+  }
+}
+
+// Delete a service
+export async function DELETE(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
+  try {
+    const serviceId = context.params.id;
+    const authHeader = request.headers.get('authorization');
+    
+    // Use a custom auth token for development
+    const devAuthToken = process.env.NODE_ENV === 'development' ? 'Bearer dev-token' : null;
+    
+    // Forward the request to the backend
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    
+    try {
+      const response = await fetch(`${backendUrl}/api/services/${serviceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader || devAuthToken || ''
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return NextResponse.json(
+          errorData.error ? errorData : { error: `Backend returned status: ${response.status}` },
+          { status: response.status }
+        );
+      }
+      
+      const data = await response.json();
+      return NextResponse.json(data);
+    } catch (backendError) {
+      console.error('Error connecting to backend:', backendError);
+      
+      // In development mode, return mock response
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using mock service deletion in development mode');
+        
+        return NextResponse.json({
+          message: 'Service deleted successfully'
+        });
+      }
+      
+      throw backendError;
+    }
+  } catch (error) {
+    console.error('Error in service DELETE API route:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete service' },
       { status: 500 }
     );
   }
