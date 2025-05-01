@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { FileText, Plus, Download, ArrowUpRight, MoreVertical, Check } from 'lucide-react';
+import { FileText, Plus, Download, ArrowUpRight, MoreVertical, Check, Mail } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -186,6 +186,9 @@ export default function InvoicesPage() {
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
   const [organization, setOrganization] = useState<{ id: string, name: string }>({ id: '', name: '' });
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
   
   useEffect(() => {
     fetchInvoices();
@@ -467,6 +470,119 @@ export default function InvoicesPage() {
     doc.save(`Invoice-${invoice.invoice_number}.pdf`);
   };
   
+  const handleSendInvoiceEmail = async (invoice: Invoice) => {
+    try {
+      setIsSendingEmail(true);
+      setEmailSuccess(null);
+      setEmailError(null);
+      
+      // First generate the PDF
+      const doc = new jsPDF();
+      
+      // Add header
+      doc.setFontSize(20);
+      doc.setTextColor(128, 0, 128); // Purple color
+      doc.text('INVOICE', 105, 20, { align: 'center' });
+      
+      // Organization name
+      let orgName = organization?.name || "Your Organization";
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(orgName, 14, 30);
+      
+      // Add invoice details
+      doc.setFontSize(10);
+      doc.text(`Invoice Number: ${invoice.invoice_number}`, 140, 30);
+      doc.text(`Date: ${formatDate(invoice.created_at)}`, 140, 35);
+      doc.text(`Due Date: ${formatDate(invoice.due_date)}`, 140, 40);
+      doc.text(`Status: ${invoice.status}`, 140, 45);
+      
+      // Add client info
+      doc.setFontSize(12);
+      doc.text('Bill To:', 14, 65);
+      doc.setFontSize(10);
+      doc.text(invoice.client_name, 14, 70);
+      doc.text(invoice.client_email, 14, 75);
+      
+      // Add invoice items table
+      const itemTableData = [
+        ['Description', 'Quantity', 'Unit Price', 'Amount'],
+        ['Professional Services', '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
+      ];
+      
+      autoTable(doc, {
+        startY: 85,
+        head: [itemTableData[0]],
+        body: [itemTableData[1]],
+        theme: 'grid',
+        headStyles: { fillColor: [100, 50, 150], textColor: [255, 255, 255] },
+        styles: { lineColor: [200, 200, 200] }
+      });
+      
+      // Get the y position where the table ended
+      const finalY = (doc as any).lastAutoTable.finalY || 85 + 20;
+      
+      // Add total amount
+      doc.setFontSize(10);
+      doc.text('Subtotal:', 140, finalY + 10);
+      doc.text('Tax:', 140, finalY + 15);
+      doc.text('Total:', 140, finalY + 25);
+      
+      doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 10, { align: 'right' });
+      doc.text(formatCurrency(0, invoice.currency), 175, finalY + 15, { align: 'right' });
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 25, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      
+      // Add notes
+      if (invoice.notes) {
+        doc.text('Notes:', 14, finalY + 40);
+        doc.text(invoice.notes, 14, finalY + 45);
+      }
+      
+      // Add footer
+      doc.setFontSize(8);
+      doc.text('Thank you for your business!', 105, 280, { align: 'center' });
+      
+      // Convert PDF to base64 string
+      const pdfBuffer = doc.output('arraybuffer');
+      const base64PDF = Buffer.from(pdfBuffer).toString('base64');
+      
+      // Send email via API
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Authentication required');
+      
+      const response = await fetch(`/api/invoices/${invoice.id}/email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          pdfBuffer: base64PDF,
+          message: `Dear ${invoice.client_name},\n\nPlease find attached your invoice #${invoice.invoice_number} for ${formatCurrency(invoice.amount_total, invoice.currency)}.`
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send email');
+      }
+      
+      const result = await response.json();
+      setEmailSuccess(result.message || 'Invoice sent successfully');
+      
+      // Refresh invoices list to get updated status
+      fetchInvoices();
+    } catch (error: any) {
+      console.error('Error sending invoice email:', error);
+      setEmailError(error.message || 'Failed to send email');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+  
   // Add the fadeIn animation globally
   <style jsx global>{`
     @keyframes fadeIn {
@@ -538,6 +654,18 @@ export default function InvoicesPage() {
       {error && (
         <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6">
           {error}
+        </div>
+      )}
+      
+      {emailSuccess && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-lg mb-6 animate-fadeIn">
+          {emailSuccess}
+        </div>
+      )}
+      
+      {emailError && (
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg mb-6 animate-fadeIn">
+          {emailError}
         </div>
       )}
       
@@ -688,6 +816,18 @@ export default function InvoicesPage() {
                                 >
                                   <Download className="h-4 w-4 mr-2.5" />
                                   Download Invoice
+                                </button>
+                                <button
+                                  className="flex items-center w-full text-left px-4 py-2.5 text-sm text-blue-400 transition-all duration-150 hover:bg-zinc-800/70 hover:pl-5"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    handleSendInvoiceEmail(invoice);
+                                    setDropdownOpenId(null);
+                                  }}
+                                  disabled={isSendingEmail}
+                                >
+                                  <Mail className="h-4 w-4 mr-2.5" />
+                                  Send as Email
                                 </button>
                                 <button
                                   className="flex items-center w-full text-left px-4 py-2.5 text-sm text-blue-400 transition-all duration-150 hover:bg-zinc-800/70 hover:pl-5"
