@@ -3,6 +3,7 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { PlusCircle, Pencil, Trash2, Check, X, AlertCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 // UI Components
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../../../components/ui/card";
@@ -21,6 +22,18 @@ interface Service {
   created_at: string;
 }
 
+// Portal component for rendering modals
+const Portal = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  return mounted ? createPortal(children, document.body) : null;
+};
+
 export default function SettingsPage() {
   const params = useParams();
   const organizationId = params.id as string;
@@ -30,7 +43,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [newService, setNewService] = useState({
     name: '',
     description: '',
@@ -123,7 +136,7 @@ export default function SettingsPage() {
       setServices([...services, data]);
       setSuccess('Service added successfully');
       setNewService({ name: '', description: '', payment_link: '' });
-      setShowAddForm(false);
+      setShowAddModal(false);
       
     } catch (err) {
       console.error('Error adding service:', err);
@@ -176,12 +189,21 @@ export default function SettingsPage() {
         })
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server returned status: ${response.status}`);
+      // Get response data first
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (err) {
+        throw new Error('Failed to parse server response');
       }
       
-      const updatedService = await response.json();
+      // Then check if the response was successful
+      if (!response.ok) {
+        throw new Error(responseData.error || `Server returned status: ${response.status}`);
+      }
+      
+      // Use the already parsed data
+      const updatedService = responseData;
       
       setServices(services.map(service => 
         service.id === id ? updatedService : service
@@ -278,87 +300,15 @@ export default function SettingsPage() {
                 </CardDescription>
               </div>
               <Button 
-                onClick={() => setShowAddForm(!showAddForm)}
+                onClick={() => setShowAddModal(true)}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
               >
-                {showAddForm ? (
-                  <>
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Add Service
-                  </>
-                )}
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Service
               </Button>
             </CardHeader>
             
             <CardContent>
-              {/* Add Service Form */}
-              {showAddForm && (
-                <form onSubmit={handleAddService} className="mb-8 p-4 border border-zinc-800 rounded-lg bg-zinc-900/80">
-                  <h3 className="text-lg font-semibold mb-4">Add New Service</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="service-name">Service Name *</Label>
-                      <Input 
-                        id="service-name"
-                        value={newService.name}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setNewService({...newService, name: e.target.value})}
-                        placeholder="e.g. Web Development"
-                        className="bg-zinc-800 border-zinc-700"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="service-description">Description</Label>
-                      <Textarea 
-                        id="service-description"
-                        value={newService.description}
-                        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewService({...newService, description: e.target.value})}
-                        placeholder="Describe your service"
-                        className="bg-zinc-800 border-zinc-700 min-h-[100px]"
-                      />
-                    </div>
-                    
-                    <div className="grid gap-2">
-                      <Label htmlFor="payment-link">Payment Link (Optional)</Label>
-                      <Input 
-                        id="payment-link"
-                        value={newService.payment_link}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setNewService({...newService, payment_link: e.target.value})}
-                        placeholder="https://example.com/payment"
-                        className="bg-zinc-800 border-zinc-700"
-                      />
-                      <p className="text-xs text-zinc-500">
-                        Add a direct payment link for clients to pay for this service
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 flex justify-end gap-3">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => setShowAddForm(false)}
-                      className="bg-zinc-800 border-zinc-700"
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      type="submit" 
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-                    >
-                      Add Service
-                    </Button>
-                  </div>
-                </form>
-              )}
-              
               {/* Services List */}
               {loading ? (
                 <div className="flex justify-center items-center py-12">
@@ -395,22 +345,23 @@ export default function SettingsPage() {
                                 <Input 
                                   value={editFormData.name}
                                   onChange={(e: ChangeEvent<HTMLInputElement>) => setEditFormData({...editFormData, name: e.target.value})}
-                                  className="bg-zinc-800 border-zinc-700"
+                                  className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                                   required
+                                  autoFocus
                                 />
                               </td>
                               <td className="p-3">
                                 <Textarea 
                                   value={editFormData.description}
                                   onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setEditFormData({...editFormData, description: e.target.value})}
-                                  className="bg-zinc-800 border-zinc-700 min-h-[80px]"
+                                  className="bg-zinc-800 border-zinc-700 min-h-[80px] focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                                 />
                               </td>
                               <td className="p-3">
                                 <Input 
                                   value={editFormData.payment_link}
                                   onChange={(e: ChangeEvent<HTMLInputElement>) => setEditFormData({...editFormData, payment_link: e.target.value})}
-                                  className="bg-zinc-800 border-zinc-700"
+                                  className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                                 />
                               </td>
                               <td className="p-3 whitespace-nowrap">
@@ -522,6 +473,89 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Add Service Modal */}
+      {showAddModal && (
+        <Portal>
+          <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-zinc-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-zinc-800 animate-in fade-in slide-in-from-bottom-5 duration-300">
+              <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white">Add New Service</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAddModal(false)}
+                  className="h-8 w-8 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <form onSubmit={handleAddService} className="p-6">
+                <div className="space-y-5">
+                  <div className="grid gap-2">
+                    <Label htmlFor="service-name" className="text-zinc-300">Service Name *</Label>
+                    <Input 
+                      id="service-name"
+                      value={newService.name}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setNewService({...newService, name: e.target.value})}
+                      placeholder="e.g. Web Development"
+                      className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="service-description" className="text-zinc-300">Description</Label>
+                    <Textarea 
+                      id="service-description"
+                      value={newService.description}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNewService({...newService, description: e.target.value})}
+                      placeholder="Describe your service"
+                      className="bg-zinc-800 border-zinc-700 min-h-[120px] focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-zinc-500">
+                      Add details about what this service includes
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="payment-link" className="text-zinc-300">Payment Link (Optional)</Label>
+                    <Input 
+                      id="payment-link"
+                      value={newService.payment_link}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setNewService({...newService, payment_link: e.target.value})}
+                      placeholder="https://example.com/payment"
+                      className="bg-zinc-800 border-zinc-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-zinc-500">
+                      Add a direct payment link for clients to pay for this service
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="mt-8 flex justify-end gap-3">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setShowAddModal(false)}
+                    className="bg-zinc-800 border-zinc-700 hover:bg-zinc-700"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6"
+                  >
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Add Service
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </Portal>
+      )}
     </div>
   );
 } 
