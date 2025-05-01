@@ -44,6 +44,7 @@ export async function GET(
           client_name: 'Mock Client',
           client_email: 'client@example.com',
           service_id: null,
+          include_payment_button: false,
           amount_total: 199.99,
           currency: 'USD',
           due_date: new Date().toISOString(),

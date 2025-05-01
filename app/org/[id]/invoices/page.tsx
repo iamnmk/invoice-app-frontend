@@ -166,6 +166,8 @@ interface Invoice {
   service_id?: string;
   notes?: string;
   service_name?: string;
+  include_payment_button?: boolean;
+  payment_link?: string;
 }
 
 // Add a custom button styles for a consistent look and feel
@@ -190,7 +192,7 @@ export default function InvoicesPage() {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [services, setServices] = useState<{id: string, name: string}[]>([]);
+  const [services, setServices] = useState<{id: string, name: string, payment_link?: string}[]>([]);
   
   useEffect(() => {
     fetchInvoices();
@@ -432,36 +434,58 @@ export default function InvoicesPage() {
       }
     }
     
+    // Fetch the most up-to-date invoice data
+    let currentInvoice = invoice;
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const response = await fetch(`/api/invoices/${invoice.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const fetchedInvoice = await response.json();
+          currentInvoice = fetchedInvoice;
+          console.log("Using fresh invoice data for PDF:", currentInvoice);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching fresh invoice data:', err);
+      // Continue with existing invoice data
+    }
+    
     // Create a new jsPDF instance
     const doc = new jsPDF();
     
     // Add header
     doc.setFontSize(20);
-    doc.setTextColor(128, 0, 128); // Purple color
+    doc.setTextColor(255, 140, 0); // Orange color
     doc.text('INVOICE', 105, 20, { align: 'center' });
     
     // Use the organization name, with appropriate fallback
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    console.log("Using organization name in PDF:", orgName);
     doc.text(orgName, 14, 30);
     
     // Add invoice details
     doc.setFontSize(10);
-    doc.text(`Invoice Number: ${invoice.invoice_number}`, 140, 30);
-    doc.text(`Date: ${formatDate(invoice.created_at)}`, 140, 35);
-    doc.text(`Due Date: ${formatDate(invoice.due_date)}`, 140, 40);
-    doc.text(`Status: ${invoice.status}`, 140, 45);
+    doc.text(`Invoice Number: ${currentInvoice.invoice_number}`, 140, 30);
+    doc.text(`Date: ${formatDate(currentInvoice.created_at)}`, 140, 35);
+    doc.text(`Due Date: ${formatDate(currentInvoice.due_date)}`, 140, 40);
+    doc.text(`Status: ${currentInvoice.status}`, 140, 45);
     
     // Add client info
     doc.setFontSize(12);
     doc.text('Bill To:', 14, 65);
     doc.setFontSize(10);
-    doc.text(invoice.client_name, 14, 70);
-    doc.text(invoice.client_email, 14, 75);
+    doc.text(currentInvoice.client_name, 14, 70);
+    doc.text(currentInvoice.client_email, 14, 75);
     
     // Add service info if available
-    const serviceName = getServiceName(invoice.service_id);
+    const serviceName = getServiceName(currentInvoice.service_id);
+    const service = services.find(s => s.id === currentInvoice.service_id);
     if (serviceName) {
       doc.setFontSize(12);
       doc.text('Service:', 14, 85);
@@ -476,7 +500,7 @@ export default function InvoicesPage() {
     // Add invoice items table
     const itemTableData = [
       ['Description', 'Quantity', 'Unit Price', 'Amount'],
-      [(serviceName || 'Professional Services'), '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
+      [(serviceName || 'Professional Services'), '1', formatCurrency(currentInvoice.amount_total, currentInvoice.currency).replace(currentInvoice.currency, ''), formatCurrency(currentInvoice.amount_total, currentInvoice.currency)]
     ];
     
     autoTable(doc, {
@@ -484,7 +508,7 @@ export default function InvoicesPage() {
       head: [itemTableData[0]],
       body: [itemTableData[1]],
       theme: 'grid',
-      headStyles: { fillColor: [100, 50, 150], textColor: [255, 255, 255] },
+      headStyles: { fillColor: [255, 140, 0], textColor: [255, 255, 255] },
       styles: { lineColor: [200, 200, 200] }
     });
     
@@ -497,25 +521,62 @@ export default function InvoicesPage() {
     doc.text('Tax:', 140, finalY + 15);
     doc.text('Total:', 140, finalY + 25);
     
-    doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 10, { align: 'right' });
-    doc.text(formatCurrency(0, invoice.currency), 175, finalY + 15, { align: 'right' });
+    doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 10, { align: 'right' });
+    doc.text(formatCurrency(0, currentInvoice.currency), 175, finalY + 15, { align: 'right' });
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 25, { align: 'right' });
+    doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 25, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     
     // Add notes
-    if (invoice.notes) {
+    if (currentInvoice.notes) {
       doc.text('Notes:', 14, finalY + 40);
-      doc.text(invoice.notes, 14, finalY + 45);
+      doc.text(currentInvoice.notes, 14, finalY + 45);
+    }
+    
+    // Check if we should add a payment button
+    console.log("Invoice include_payment_button:", currentInvoice.include_payment_button);
+    console.log("Service payment link:", service?.payment_link);
+    
+    if (service?.payment_link) {
+      const paymentY = currentInvoice.notes ? finalY + 60 : finalY + 40;
+      
+      // Add payment section
+      doc.setFontSize(12);
+      doc.text('Payment Options:', 14, paymentY);
+      
+      // Draw a button rectangle
+      doc.setFillColor(255, 140, 0);
+      doc.setDrawColor(255, 140, 0);
+      doc.roundedRect(14, paymentY + 5, 80, 20, 3, 3, 'F');
+      
+      // Add button text
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('PAY NOW ONLINE', 54, paymentY + 17, { align: 'center' });
+      
+      // Add link annotation to make the button clickable
+      doc.link(14, paymentY + 5, 80, 20, { url: service.payment_link });
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      
+      // Add payment instructions
+      doc.setFontSize(9);
+      doc.text('Click the button above to pay online or use the link below:', 14, paymentY + 32);
+      doc.setTextColor(0, 102, 204);
+      doc.text(service.payment_link, 14, paymentY + 38);
+      doc.link(14, paymentY + 34, service.payment_link.length * 2, 8, { url: service.payment_link });
     }
     
     // Add footer
     doc.setFontSize(8);
+    doc.setTextColor(0, 0, 0);
     doc.text('Thank you for your business!', 105, 280, { align: 'center' });
     
     // Save the PDF
-    doc.save(`Invoice-${invoice.invoice_number}.pdf`);
+    doc.save(`Invoice-${currentInvoice.invoice_number}.pdf`);
   };
   
   const handleSendInvoiceEmail = async (invoice: Invoice) => {
@@ -524,12 +585,34 @@ export default function InvoicesPage() {
       setEmailSuccess(null);
       setEmailError(null);
       
+      // Fetch the most up-to-date invoice data
+      let currentInvoice = invoice;
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const response = await fetch(`/api/invoices/${invoice.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const fetchedInvoice = await response.json();
+            currentInvoice = fetchedInvoice;
+            console.log("Using fresh invoice data for email:", currentInvoice);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching fresh invoice data:', err);
+        // Continue with existing invoice data
+      }
+      
       // First generate the PDF
       const doc = new jsPDF();
       
       // Add header
       doc.setFontSize(20);
-      doc.setTextColor(128, 0, 128); // Purple color
+      doc.setTextColor(255, 140, 0); // Orange color
       doc.text('INVOICE', 105, 20, { align: 'center' });
       
       // Organization name
@@ -540,20 +623,21 @@ export default function InvoicesPage() {
       
       // Add invoice details
       doc.setFontSize(10);
-      doc.text(`Invoice Number: ${invoice.invoice_number}`, 140, 30);
-      doc.text(`Date: ${formatDate(invoice.created_at)}`, 140, 35);
-      doc.text(`Due Date: ${formatDate(invoice.due_date)}`, 140, 40);
-      doc.text(`Status: ${invoice.status}`, 140, 45);
+      doc.text(`Invoice Number: ${currentInvoice.invoice_number}`, 140, 30);
+      doc.text(`Date: ${formatDate(currentInvoice.created_at)}`, 140, 35);
+      doc.text(`Due Date: ${formatDate(currentInvoice.due_date)}`, 140, 40);
+      doc.text(`Status: ${currentInvoice.status}`, 140, 45);
       
       // Add client info
       doc.setFontSize(12);
       doc.text('Bill To:', 14, 65);
       doc.setFontSize(10);
-      doc.text(invoice.client_name, 14, 70);
-      doc.text(invoice.client_email, 14, 75);
+      doc.text(currentInvoice.client_name, 14, 70);
+      doc.text(currentInvoice.client_email, 14, 75);
       
       // Add service info if available
-      const serviceName = getServiceName(invoice.service_id);
+      const serviceName = getServiceName(currentInvoice.service_id);
+      const service = services.find(s => s.id === currentInvoice.service_id);
       if (serviceName) {
         doc.setFontSize(12);
         doc.text('Service:', 14, 85);
@@ -568,7 +652,7 @@ export default function InvoicesPage() {
       // Add invoice items table
       const itemTableData = [
         ['Description', 'Quantity', 'Unit Price', 'Amount'],
-        [(serviceName || 'Professional Services'), '1', formatCurrency(invoice.amount_total, invoice.currency).replace(invoice.currency, ''), formatCurrency(invoice.amount_total, invoice.currency)]
+        [(serviceName || 'Professional Services'), '1', formatCurrency(currentInvoice.amount_total, currentInvoice.currency).replace(currentInvoice.currency, ''), formatCurrency(currentInvoice.amount_total, currentInvoice.currency)]
       ];
       
       autoTable(doc, {
@@ -576,7 +660,7 @@ export default function InvoicesPage() {
         head: [itemTableData[0]],
         body: [itemTableData[1]],
         theme: 'grid',
-        headStyles: { fillColor: [100, 50, 150], textColor: [255, 255, 255] },
+        headStyles: { fillColor: [255, 140, 0], textColor: [255, 255, 255] },
         styles: { lineColor: [200, 200, 200] }
       });
       
@@ -589,21 +673,56 @@ export default function InvoicesPage() {
       doc.text('Tax:', 140, finalY + 15);
       doc.text('Total:', 140, finalY + 25);
       
-      doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 10, { align: 'right' });
-      doc.text(formatCurrency(0, invoice.currency), 175, finalY + 15, { align: 'right' });
+      doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 10, { align: 'right' });
+      doc.text(formatCurrency(0, currentInvoice.currency), 175, finalY + 15, { align: 'right' });
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(formatCurrency(invoice.amount_total, invoice.currency), 175, finalY + 25, { align: 'right' });
+      doc.text(formatCurrency(currentInvoice.amount_total, currentInvoice.currency), 175, finalY + 25, { align: 'right' });
       doc.setFont('helvetica', 'normal');
       
       // Add notes
-      if (invoice.notes) {
+      if (currentInvoice.notes) {
         doc.text('Notes:', 14, finalY + 40);
-        doc.text(invoice.notes, 14, finalY + 45);
+        doc.text(currentInvoice.notes, 14, finalY + 45);
+      }
+      
+      // Add payment button if service has payment link
+      console.log("Email service payment link:", service?.payment_link);
+      if (service?.payment_link) {
+        const paymentY = currentInvoice.notes ? finalY + 60 : finalY + 40;
+        
+        // Add payment section
+        doc.setFontSize(12);
+        doc.text('Payment Options:', 14, paymentY);
+        
+        // Draw a button rectangle
+        doc.setFillColor(255, 140, 0);
+        doc.setDrawColor(255, 140, 0);
+        doc.roundedRect(14, paymentY + 5, 80, 20, 3, 3, 'F');
+        
+        // Add button text
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text('PAY NOW ONLINE', 54, paymentY + 17, { align: 'center' });
+        
+        // Add link annotation to make the button clickable
+        doc.link(14, paymentY + 5, 80, 20, { url: service.payment_link });
+        
+        // Reset text color
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'normal');
+        
+        // Add payment instructions
+        doc.setFontSize(9);
+        doc.text('Click the button above to pay online or use the link below:', 14, paymentY + 32);
+        doc.setTextColor(0, 102, 204);
+        doc.text(service.payment_link, 14, paymentY + 38);
+        doc.link(14, paymentY + 34, service.payment_link.length * 2, 8, { url: service.payment_link });
       }
       
       // Add footer
       doc.setFontSize(8);
+      doc.setTextColor(0, 0, 0);
       doc.text('Thank you for your business!', 105, 280, { align: 'center' });
       
       // Convert PDF to base64 string
@@ -614,7 +733,7 @@ export default function InvoicesPage() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Authentication required');
       
-      const response = await fetch(`/api/invoices/${invoice.id}/email`, {
+      const response = await fetch(`/api/invoices/${currentInvoice.id}/email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -622,7 +741,7 @@ export default function InvoicesPage() {
         },
         body: JSON.stringify({
           pdfBuffer: base64PDF,
-          message: `Dear ${invoice.client_name},\n\nPlease find attached your invoice #${invoice.invoice_number} for ${formatCurrency(invoice.amount_total, invoice.currency)}.`
+          message: `Dear ${currentInvoice.client_name},\n\nPlease find attached your invoice #${currentInvoice.invoice_number} for ${formatCurrency(currentInvoice.amount_total, currentInvoice.currency)}.`
         })
       });
       

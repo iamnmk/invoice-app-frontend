@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
           client_name: body.client_name,
           client_email: body.client_email,
           service_id: body.service_id || null,
+          include_payment_button: body.include_payment_button || false,
           amount_total: parseFloat(body.amount_total),
           currency: body.currency || 'USD',
           due_date: body.due_date,

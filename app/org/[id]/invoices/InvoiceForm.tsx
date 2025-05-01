@@ -36,7 +36,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
     currency: 'USD',
     notes: '',
     status: 'Draft',
-    service_id: ''
+    service_id: '',
+    include_payment_button: false
   });
   
   // Fetch services on component mount
@@ -116,7 +117,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         currency: invoice.currency || 'USD',
         notes: invoice.notes || '',
         status: invoice.status,
-        service_id: invoice.service_id || ''
+        service_id: invoice.service_id || '',
+        include_payment_button: invoice.include_payment_button || false
       });
     } catch (err) {
       console.error('Error fetching invoice:', err);
@@ -164,7 +166,8 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
         due_date: formData.due_date,
         currency: formData.currency,
         notes: formData.notes,
-        service_id: formData.service_id || null  // Include service_id or null if not selected
+        service_id: formData.service_id || null,
+        include_payment_button: formData.include_payment_button
       };
       
       let response;
@@ -219,6 +222,17 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
   
   // Find the selected service name if service_id is set
   const selectedService = services.find(service => service.id === formData.service_id);
+  const hasPaymentLink = selectedService?.payment_link ? true : false;
+
+  // Toggle payment button option
+  const handlePaymentButtonToggle = () => {
+    if (hasPaymentLink) {
+      setFormData(prev => ({
+        ...prev,
+        include_payment_button: !prev.include_payment_button
+      }));
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="text-white">
@@ -381,7 +395,7 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
       
       <div className="bg-zinc-900/50 border border-zinc-800 backdrop-blur-sm rounded-lg p-5 mb-6">
         <h3 className="text-lg font-medium mb-4 text-white">Additional Details</h3>
-        <div>
+        <div className="mb-4">
           <label htmlFor="notes" className="block text-sm font-medium text-zinc-400 mb-1">
             Notes
           </label>
@@ -391,8 +405,21 @@ export default function InvoiceForm({ organizationId, invoiceId, onInvoiceCreate
             value={formData.notes}
             onChange={handleInputChange}
             rows={3}
-            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white resize-none"
+            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-white resize-none"
           ></textarea>
+        </div>
+        
+        <div className="flex items-center mt-4">
+          <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${hasPaymentLink ? 'bg-zinc-700 cursor-pointer' : 'bg-zinc-800 opacity-50 cursor-not-allowed'}`}
+               onClick={handlePaymentButtonToggle}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.include_payment_button && hasPaymentLink ? 'translate-x-6' : 'translate-x-1'}`} />
+          </div>
+          <label className="ml-2 text-sm font-medium text-zinc-400">
+            Include "Pay Now" button in PDF
+            {!hasPaymentLink && (
+              <span className="ml-2 text-xs text-zinc-500">(Requires a service with payment link)</span>
+            )}
+          </label>
         </div>
       </div>
       
